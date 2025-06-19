@@ -7,14 +7,12 @@
 # probes non-LAN hosts using fping, and adjusts the RTT parameter
 # of CAKE qdisc on both ingress and egress interfaces.
 
-VERSION="1.0.0"
+VERSION="1.0.1"
 
 # Default configuration
-PROBE_INTERVAL=5
-RTT_UPDATE_INTERVAL=30
-EWMA_ALPHA=0.1
+RTT_UPDATE_INTERVAL=10
 MIN_HOSTS=3
-MAX_HOSTS=20
+MAX_HOSTS=50
 RTT_MARGIN_PERCENT=10
 DEFAULT_RTT_MS=100
 DL_INTERFACE=""
@@ -23,7 +21,6 @@ DEBUG=0
 
 # Global variables
 CURRENT_RTT_MS=0
-RTT_EWMA=0
 HOSTS_COUNT=0
 PIDFILE="/var/run/cake-autortt.pid"
 TEMP_HOSTS="/tmp/cake-autortt-hosts"
@@ -49,9 +46,7 @@ cake-autortt v$VERSION - Automatically adjust CAKE qdisc RTT parameter
 Usage: cake-autortt [OPTIONS]
 
 OPTIONS:
-  --probe-interval SECONDS        Interval between RTT probes (default: $PROBE_INTERVAL)
   --rtt-update-interval SECONDS   Interval between qdisc RTT updates (default: $RTT_UPDATE_INTERVAL)
-  --ewma-alpha FLOAT              EWMA alpha for RTT smoothing (default: $EWMA_ALPHA)
   --min-hosts NUMBER              Minimum hosts needed for RTT calculation (default: $MIN_HOSTS)
   --max-hosts NUMBER              Maximum hosts to probe simultaneously (default: $MAX_HOSTS)
   --rtt-margin-percent PERCENT    Percentage margin added to measured RTT (default: $RTT_MARGIN_PERCENT)
@@ -64,12 +59,15 @@ OPTIONS:
 
 EXAMPLES:
   cake-autortt --debug
-  cake-autortt --probe-interval 10 --dl-interface ifb-wan --ul-interface wan
+  cake-autortt --rtt-update-interval 15 --dl-interface ifb-wan --ul-interface wan
 
 The script automatically detects active network connections from /proc/net/nf_conntrack,
 filters out LAN addresses, and uses fping to measure RTT to external hosts.
 The measured RTT is then used to adjust the CAKE qdisc RTT parameter on both
 ingress and egress interfaces for optimal performance.
+
+fping automatically calculates average RTT across all responsive hosts,
+eliminating the need for manual EWMA smoothing or bc calculations.
 EOF
 }
 
@@ -80,16 +78,8 @@ show_version() {
 parse_args() {
 	while [ $# -gt 0 ]; do
 		case "$1" in
-			--probe-interval)
-				PROBE_INTERVAL="$2"
-				shift 2
-				;;
 			--rtt-update-interval)
 				RTT_UPDATE_INTERVAL="$2"
-				shift 2
-				;;
-			--ewma-alpha)
-				EWMA_ALPHA="$2"
 				shift 2
 				;;
 			--min-hosts)
@@ -224,44 +214,33 @@ measure_rtt_fping() {
 	# Check if we have enough responding hosts and valid RTT measurement
 	if [ -n "$alive_count" ] && [ -n "$avg_rtt" ] && \
 	   [ "$alive_count" -ge "$MIN_HOSTS" ] && \
-	   [ "$(echo "$avg_rtt > 0" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
-		CURRENT_RTT_MS="$avg_rtt"
-		log_msg "DEBUG" "Average RTT from $alive_count hosts: ${avg_rtt}ms"
-		return 0
-	else
-		if [ -z "$alive_count" ] || [ "$alive_count" -lt "$MIN_HOSTS" ]; then
-			log_msg "DEBUG" "Not enough responding hosts ($alive_count < $MIN_HOSTS)"
-		else
-			log_msg "DEBUG" "Invalid or missing RTT measurement: '$avg_rtt'"
+	   [ "$(echo "$avg_rtt" | grep -E '^[0-9]+(\.[0-9]+)?$')" ]; then
+		# Simple validation that avg_rtt is a positive number
+		if [ "$(echo "$avg_rtt > 0" | awk '{print ($1 > 0)}')" = "1" ]; then
+			CURRENT_RTT_MS="$avg_rtt"
+			log_msg "DEBUG" "Average RTT from $alive_count hosts: ${avg_rtt}ms"
+			return 0
 		fi
-		return 1
 	fi
-}
-
-update_rtt_ewma() {
-	local new_rtt="$1"
 	
-	if [ "$(echo "$RTT_EWMA == 0" | bc -l 2>/dev/null || echo 1)" = "1" ]; then
-		# Initialize EWMA with first measurement
-		RTT_EWMA="$new_rtt"
+	if [ -z "$alive_count" ] || [ "$alive_count" -lt "$MIN_HOSTS" ]; then
+		log_msg "DEBUG" "Not enough responding hosts ($alive_count < $MIN_HOSTS)"
 	else
-		# Update EWMA: new_ewma = alpha * new_value + (1 - alpha) * old_ewma
-		RTT_EWMA=$(echo "scale=2; $EWMA_ALPHA * $new_rtt + (1 - $EWMA_ALPHA) * $RTT_EWMA" | bc -l)
+		log_msg "DEBUG" "Invalid or missing RTT measurement: '$avg_rtt'"
 	fi
-	
-	log_msg "DEBUG" "RTT EWMA updated: ${RTT_EWMA}ms"
+	return 1
 }
 
 adjust_cake_rtt() {
 	local target_rtt_ms="$1"
 	
-	# Add margin to measured RTT
+	# Add margin to measured RTT using awk for arithmetic
 	local adjusted_rtt
-	adjusted_rtt=$(echo "scale=0; $target_rtt_ms * (1 + $RTT_MARGIN_PERCENT / 100)" | bc -l)
+	adjusted_rtt=$(echo "$target_rtt_ms $RTT_MARGIN_PERCENT" | awk '{printf "%.0f", $1 * (1 + $2 / 100)}')
 	
 	# Convert to microseconds for tc command
 	local rtt_us
-	rtt_us=$(echo "$adjusted_rtt * 1000" | bc -l | sed 's/\..*//') # Remove decimal part
+	rtt_us=$(echo "$adjusted_rtt" | awk '{printf "%.0f", $1 * 1000}')
 	
 	log_msg "INFO" "Adjusting CAKE RTT to ${adjusted_rtt}ms (${rtt_us}us)"
 	
@@ -323,8 +302,8 @@ main_loop() {
 	local current_time
 	
 	log_msg "INFO" "Starting cake-autortt main loop"
-	log_msg "INFO" "Config: probe_interval=${PROBE_INTERVAL}s, rtt_update_interval=${RTT_UPDATE_INTERVAL}s"
-	log_msg "INFO" "Config: min_hosts=$MIN_HOSTS, max_hosts=$MAX_HOSTS, ewma_alpha=$EWMA_ALPHA"
+	log_msg "INFO" "Config: rtt_update_interval=${RTT_UPDATE_INTERVAL}s"
+	log_msg "INFO" "Config: min_hosts=$MIN_HOSTS, max_hosts=$MAX_HOSTS"
 	log_msg "INFO" "Config: rtt_margin=${RTT_MARGIN_PERCENT}%, default_rtt=${DEFAULT_RTT_MS}ms"
 	
 	while true; do
@@ -333,32 +312,31 @@ main_loop() {
 		# Extract hosts from conntrack
 		extract_hosts_from_conntrack "$TEMP_HOSTS"
 		
+		local should_update_rtt=0
+		local rtt_to_use="$DEFAULT_RTT_MS"
+		
 		# Measure RTT if we have enough hosts
 		if [ "$HOSTS_COUNT" -ge "$MIN_HOSTS" ]; then
 			if measure_rtt_fping "$TEMP_HOSTS"; then
-				update_rtt_ewma "$CURRENT_RTT_MS"
-				
-				# Update CAKE RTT parameter if enough time has passed
-				if [ $((current_time - last_rtt_update)) -ge "$RTT_UPDATE_INTERVAL" ]; then
-					adjust_cake_rtt "$RTT_EWMA"
-					last_rtt_update="$current_time"
-				fi
+				rtt_to_use="$CURRENT_RTT_MS"
+				should_update_rtt=1
+				log_msg "DEBUG" "Using measured RTT: ${rtt_to_use}ms"
 			else
-				log_msg "DEBUG" "RTT measurement failed, using default RTT"
-				if [ $((current_time - last_rtt_update)) -ge "$RTT_UPDATE_INTERVAL" ]; then
-					adjust_cake_rtt "$DEFAULT_RTT_MS"
-					last_rtt_update="$current_time"
-				fi
+				log_msg "DEBUG" "RTT measurement failed, using default RTT: ${rtt_to_use}ms"
+				should_update_rtt=1
 			fi
 		else
-			log_msg "DEBUG" "Not enough hosts ($HOSTS_COUNT < $MIN_HOSTS), using default RTT"
-			if [ $((current_time - last_rtt_update)) -ge "$RTT_UPDATE_INTERVAL" ]; then
-				adjust_cake_rtt "$DEFAULT_RTT_MS"
-				last_rtt_update="$current_time"
-			fi
+			log_msg "DEBUG" "Not enough hosts ($HOSTS_COUNT < $MIN_HOSTS), using default RTT: ${rtt_to_use}ms"
+			should_update_rtt=1
 		fi
 		
-		sleep "$PROBE_INTERVAL"
+		# Update CAKE RTT parameter if enough time has passed
+		if [ "$should_update_rtt" = "1" ] && [ $((current_time - last_rtt_update)) -ge "$RTT_UPDATE_INTERVAL" ]; then
+			adjust_cake_rtt "$rtt_to_use"
+			last_rtt_update="$current_time"
+		fi
+		
+		sleep "$RTT_UPDATE_INTERVAL"
 	done
 }
 
@@ -368,11 +346,6 @@ parse_args "$@"
 # Check dependencies
 command -v fping >/dev/null 2>&1 || {
 	log_msg "ERROR" "fping is required but not installed"
-	exit 1
-}
-
-command -v bc >/dev/null 2>&1 || {
-	log_msg "ERROR" "bc (calculator) is required but not installed"
 	exit 1
 }
 

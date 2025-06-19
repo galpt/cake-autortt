@@ -36,9 +36,7 @@ check_dependencies() {
         missing_deps="$missing_deps fping"
     fi
     
-    if ! command -v bc >/dev/null 2>&1; then
-        missing_deps="$missing_deps bc"
-    fi
+
     
     if ! command -v tc >/dev/null 2>&1; then
         missing_deps="$missing_deps tc"
@@ -53,10 +51,7 @@ check_dependencies() {
             log_info "Installing dependencies..."
             opkg update
             for dep in $missing_deps; do
-                case "$dep" in
-                    bc) opkg install bc-gpl ;;
-                    *) opkg install "$dep" ;;
-                esac
+                opkg install "$dep"
             done
         else
             log_error "Cannot proceed without required dependencies"
