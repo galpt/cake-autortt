@@ -135,18 +135,14 @@ uci commit cake-autortt
 |-----------|---------|-------------|
 | `rtt_update_interval` | 5 | Seconds between qdisc RTT parameter updates |
 | `min_hosts` | 3 | Minimum number of hosts required for RTT calculation |
-| `max_hosts` | 50 | Maximum number of hosts to probe simultaneously |
+| `max_hosts` | 100 | Maximum number of hosts to probe simultaneously |
 | `rtt_margin_percent` | 10 | Safety margin added to measured RTT (percentage) |
 | `default_rtt_ms` | 100 | Default RTT when insufficient hosts available |
 | `dl_interface` | auto | Download interface (leave empty for auto-detection) |
 | `ul_interface` | auto | Upload interface (leave empty for auto-detection) |
 | `debug` | 0 | Enable debug logging (0=disabled, 1=enabled) |
 
-### Removed Parameters
 
-The following parameters are not needed due to fping's built-in efficiency:
-- `probe_interval` - fping handles timing automatically  
-- `ewma_alpha` - fping provides reliable averaging without manual smoothing
 
 ## 🔍 How It Works
 
@@ -183,7 +179,7 @@ After installation and startup, you should observe:
 - **Improved Responsiveness**: RTT parameter stays current with actual network conditions
 - **Better Bufferbloat Control**: CAKE can make more informed decisions about queue management
 - **Adaptive Performance**: Automatically adjusts to changing network conditions (satellite, cellular, congested links)
-- **Higher Accuracy**: Samples up to 50 hosts for better representation of network conditions
+- **Higher Accuracy**: Samples up to 100 hosts for better representation of network conditions
 
 ### Monitoring
 
@@ -253,23 +249,6 @@ With debug enabled (`uci set cake-autortt.global.debug='1'`), the service provid
 [2025-01-09 18:34:35] cake-autortt DEBUG: Updated RTT on upload interface wan
 ```
 
-## ⚡ Performance Optimizations
-
-### Faster Response Times
-- **Default Update Interval**: Reduced from 10 to 5 seconds for faster adaptation to network changes
-- **RAM-based Temporary Files**: Uses `/dev/shm` (guaranteed ramdisk) instead of `/tmp` for better I/O performance
-- **High-Precision RTT**: Supports fractional RTT values (e.g., 49.72ms) for more accurate CAKE parameter tuning
-
-### System Efficiency
-- **Optimized File I/O**: Temporary host files stored in memory for minimal disk access
-- **Configurable Timing**: Update interval can be adjusted based on network conditions (satellite links may prefer longer intervals)
-
-### Log Management
-- **System Log Integration**: Uses OpenWrt's standard logging system
-- **Log Persistence**: After uninstalling, system logs naturally remain in the log buffer
-  - This is **expected OpenWrt behavior** and not a cleanup issue
-  - Logs will rotate out based on system configuration
-  - No manual log cleanup is required or recommended
 
 ## 📄 License
 
