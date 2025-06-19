@@ -53,9 +53,55 @@ tc qdisc help | grep cake
 
 ## 🔧 Installation
 
+> [!IMPORTANT]  
+> **Configure Interface Names First**
+> 
+> Before running the installation script, you MUST edit the configuration file to set the correct interface names for your system.
+
+1. **Edit the configuration file:**
+
+```bash
+# Edit the config file to match your interface names
+nano etc/config/cake-autortt
+```
+
+2. **Configure your interface names:**
+
+Update the `dl_interface` (download) and `ul_interface` (upload) settings to match your network setup:
+
+```bash
+# Example configurations for different setups:
+
+# For typical OpenWrt setup with SQM using ifb interfaces:
+option dl_interface 'ifb-wan'      # Download interface (usually ifb-*)
+option ul_interface 'wan'          # Upload interface (usually wan, eth0, etc.)
+
+# For direct interface setup:
+option dl_interface 'eth0'         # Your WAN interface
+option ul_interface 'eth0'         # Same interface for both directions
+
+# For custom interface names:
+option dl_interface 'ifb4eth1'     # Your specific download interface
+option ul_interface 'eth1'         # Your specific upload interface
+```
+
+**How to find your interface names:**
+```bash
+# List interfaces with CAKE qdisc
+tc qdisc show | grep cake
+
+# List all network interfaces
+ip link show
+
+# Check SQM interface configuration (if using SQM)
+uci show sqm
+```
+
 ### Quick Installation
 
-1. **Run the installation script:**
+1. **Configure interfaces (see above section)**
+
+2. **Run the installation script:**
 
 ```bash
 # Make install script executable and run
@@ -112,35 +158,44 @@ The uninstall script will:
 
 ## ⚙️ Configuration
 
-The service is configured through UCI. Edit `/etc/config/cake-autortt` or use the `uci` command:
+### 🔧 Interface Configuration (REQUIRED)
+
+**The most critical configuration step is setting the correct interface names.** The service will not work properly without the correct interface names.
 
 ```bash
 # View current configuration
 uci show cake-autortt
 
-# Example configuration changes
+# REQUIRED: Set your interface names
+uci set cake-autortt.global.dl_interface='your-download-interface'
+uci set cake-autortt.global.ul_interface='your-upload-interface'
+uci commit cake-autortt
+
+# Other optional configuration changes
 uci set cake-autortt.global.rtt_update_interval='8'
 uci set cake-autortt.global.debug='1'
-uci set cake-autortt.global.dl_interface='ifb-wan'
-uci set cake-autortt.global.ul_interface='wan'
 uci commit cake-autortt
 
 # Restart service to apply changes
 /etc/init.d/cake-autortt restart
 ```
 
+The service is configured through UCI. Edit `/etc/config/cake-autortt` or use the `uci` command.
+
 ### Configuration Parameters
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
+| **`dl_interface`** | **auto** | **🔧 REQUIRED: Download interface name (e.g., 'ifb-wan', 'ifb4eth1')** |
+| **`ul_interface`** | **auto** | **🔧 REQUIRED: Upload interface name (e.g., 'wan', 'eth1')** |
 | `rtt_update_interval` | 5 | Seconds between qdisc RTT parameter updates |
 | `min_hosts` | 3 | Minimum number of hosts required for RTT calculation |
 | `max_hosts` | 100 | Maximum number of hosts to probe simultaneously |
 | `rtt_margin_percent` | 10 | Safety margin added to measured RTT (percentage) |
 | `default_rtt_ms` | 100 | Default RTT when insufficient hosts available |
-| `dl_interface` | auto | Download interface (leave empty for auto-detection) |
-| `ul_interface` | auto | Upload interface (leave empty for auto-detection) |
 | `debug` | 0 | Enable debug logging (0=disabled, 1=enabled) |
+
+**Note:** While the interface parameters have "auto" as default, auto-detection may not work reliably in all configurations. It is strongly recommended to explicitly set these values.
 
 
 
