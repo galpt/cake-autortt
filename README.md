@@ -185,11 +185,40 @@ uci commit cake-autortt
 
 ### Debug Information
 
-With debug enabled, the service logs:
-- Number of active connections found
-- Hosts being probed and their RTT measurements
-- EWMA calculations and RTT parameter updates
-- Interface detection and qdisc modification attempts
+With debug enabled (`uci set cake-autortt.global.debug='1'`), the service provides detailed logging:
+
+**Example debug output:**
+```bash
+[2025-06-19 18:34:22] cake-autortt DEBUG: Extracting hosts from conntrack
+[2025-06-19 18:34:22] cake-autortt DEBUG: Found 20 non-LAN hosts
+[2025-06-19 18:34:22] cake-autortt DEBUG: Measuring RTT using fping for 20 hosts
+[2025-06-19 18:34:25] cake-autortt DEBUG: fping summary: 15/20 hosts alive, avg RTT: 45.2ms
+[2025-06-19 18:34:25] cake-autortt DEBUG: Average RTT from 15 hosts: 45.2ms
+[2025-06-19 18:34:25] cake-autortt DEBUG: RTT EWMA updated: 47.8ms
+[2025-06-19 18:34:55] cake-autortt INFO: Adjusting CAKE RTT to 53ms (53000us)
+[2025-06-19 18:34:55] cake-autortt DEBUG: Updated RTT on download interface ifb-wan
+[2025-06-19 18:34:55] cake-autortt DEBUG: Updated RTT on upload interface wan
+```
+
+**Debug information includes:**
+- **Connection monitoring**: Number of active external connections found
+- **Host discovery**: Count of non-LAN hosts extracted from conntrack
+- **RTT measurements**: Summary from fping including alive/total hosts and average RTT
+- **EWMA smoothing**: Updated exponential weighted moving average values
+- **Interface operations**: Success/failure of qdisc RTT parameter updates
+- **Timing information**: When measurements and updates occur
+
+**Fallback scenarios:**
+```bash
+# When insufficient hosts respond
+[2025-06-19 18:35:22] cake-autortt DEBUG: Not enough responding hosts (2 < 3)
+[2025-06-19 18:35:22] cake-autortt DEBUG: RTT measurement failed, using default RTT
+[2025-06-19 18:35:52] cake-autortt INFO: Adjusting CAKE RTT to 100ms (100000us)
+
+# When no external connections found
+[2025-06-19 18:36:22] cake-autortt DEBUG: Found 0 non-LAN hosts
+[2025-06-19 18:36:22] cake-autortt DEBUG: No hosts to probe
+```
 
 ## 🤝 Integration with Other Systems
 
