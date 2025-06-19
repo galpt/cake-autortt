@@ -14,6 +14,23 @@
 - **Configurable Parameters**: All timing and behavior parameters can be customized via UCI configuration
 - **Robust Error Handling**: Gracefully handles missing dependencies, network issues, and interface changes
 - **Simplified Dependencies**: Only requires fping and tc - no complex calculations or additional utilities needed
+- **High Precision RTT**: Supports fractional RTT values (e.g., 100.23ms) for precise network timing adjustments
+
+## 🔧 Compatibility
+
+**Tested and Working:**
+- **OpenWrt 24.10.1, r28597-0425664679, Target Platform x86/64**
+
+**Expected Compatibility:**
+- Previous OpenWrt versions (21.02+) with CAKE qdisc support
+- Future OpenWrt releases as long as required dependencies are available
+- All target architectures supported by OpenWrt (ARM, MIPS, x86, etc.)
+
+**Requirements for Compatibility:**
+- CAKE qdisc kernel module
+- fping package availability in OpenWrt repositories
+- Standard tc (traffic control) utilities
+- /proc/net/nf_conntrack support (netfilter conntrack)
 
 ## 📋 Requirements
 
@@ -102,7 +119,7 @@ The service is configured through UCI. Edit `/etc/config/cake-autortt` or use th
 uci show cake-autortt
 
 # Example configuration changes
-uci set cake-autortt.global.rtt_update_interval='15'
+uci set cake-autortt.global.rtt_update_interval='8'
 uci set cake-autortt.global.debug='1'
 uci set cake-autortt.global.dl_interface='ifb-wan'
 uci set cake-autortt.global.ul_interface='wan'
@@ -116,7 +133,7 @@ uci commit cake-autortt
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `rtt_update_interval` | 10 | Seconds between qdisc RTT parameter updates |
+| `rtt_update_interval` | 5 | Seconds between qdisc RTT parameter updates |
 | `min_hosts` | 3 | Minimum number of hosts required for RTT calculation |
 | `max_hosts` | 50 | Maximum number of hosts to probe simultaneously |
 | `rtt_margin_percent` | 10 | Safety margin added to measured RTT (percentage) |
@@ -159,7 +176,8 @@ After installation and startup, you should observe:
 ### Immediate Effects
 - Service starts automatically and begins monitoring connections
 - RTT measurements logged to system log (if debug enabled)
-- CAKE qdisc RTT parameter updated every 10 seconds based on measured network conditions
+- CAKE qdisc RTT parameter updated every 5 seconds based on measured network conditions
+- High precision RTT values (e.g., 44.89ms) applied to CAKE qdisc
 
 ### Long-term Benefits
 - **Improved Responsiveness**: RTT parameter stays current with actual network conditions
@@ -230,12 +248,28 @@ With debug enabled (`uci set cake-autortt.global.debug='1'`), the service provid
 [2025-01-09 18:34:25] cake-autortt DEBUG: fping summary: 28/35 hosts alive, avg RTT: 45.2ms
 [2025-01-09 18:34:25] cake-autortt DEBUG: Average RTT from 28 hosts: 45.2ms
 [2025-01-09 18:34:25] cake-autortt DEBUG: Using measured RTT: 45.2ms
-[2025-01-09 18:34:35] cake-autortt INFO: Adjusting CAKE RTT to 50ms (50000us)
+[2025-01-09 18:34:35] cake-autortt INFO: Adjusting CAKE RTT to 49.72ms (49720us)
 [2025-01-09 18:34:35] cake-autortt DEBUG: Updated RTT on download interface ifb-wan
 [2025-01-09 18:34:35] cake-autortt DEBUG: Updated RTT on upload interface wan
 ```
 
+## ⚡ Performance Optimizations
 
+### Faster Response Times
+- **Default Update Interval**: Reduced from 10 to 5 seconds for faster adaptation to network changes
+- **RAM-based Temporary Files**: Uses `/dev/shm` (guaranteed ramdisk) instead of `/tmp` for better I/O performance
+- **High-Precision RTT**: Supports fractional RTT values (e.g., 49.72ms) for more accurate CAKE parameter tuning
+
+### System Efficiency
+- **Optimized File I/O**: Temporary host files stored in memory for minimal disk access
+- **Configurable Timing**: Update interval can be adjusted based on network conditions (satellite links may prefer longer intervals)
+
+### Log Management
+- **System Log Integration**: Uses OpenWrt's standard logging system
+- **Log Persistence**: After uninstalling, system logs naturally remain in the log buffer
+  - This is **expected OpenWrt behavior** and not a cleanup issue
+  - Logs will rotate out based on system configuration
+  - No manual log cleanup is required or recommended
 
 ## 📄 License
 

@@ -72,6 +72,11 @@ remove_files() {
         log_info "Removing temporary hosts file: /tmp/cake-autortt-hosts"
         rm -f "${INSTALL_ROOT}/tmp/cake-autortt-hosts"
     fi
+    
+    if [ -f "${INSTALL_ROOT}/dev/shm/cake-autortt-hosts" ]; then
+        log_info "Removing temporary hosts file: /dev/shm/cake-autortt-hosts"
+        rm -f "${INSTALL_ROOT}/dev/shm/cake-autortt-hosts"
+    fi
 }
 
 handle_config_file() {
@@ -126,14 +131,19 @@ show_completion_message() {
     echo
     echo "The following may still be present on your system:"
     echo "- CAKE qdisc configuration (not modified by this script)"
-    echo "- Log entries in system logs"
+    echo "- Log entries in system logs (this is normal OpenWrt behavior)"
     if [ -f "${INSTALL_ROOT}/etc/config/cake-autortt" ]; then
         echo "- Configuration file (kept at your request)"
     fi
     echo
+    echo "Note about system logs:"
+    echo "- System logs are managed by OpenWrt's logging system"
+    echo "- Old logs will naturally rotate out based on system configuration"
+    echo "- This is expected behavior and not a cleanup issue"
+    echo
     echo "If you want to completely remove all traces:"
-    echo "- Clean system logs: logread | grep -v cake-autortt"
     echo "- Review CAKE qdisc settings: tc qdisc show"
+    echo "- System logs will clear naturally over time"
 }
 
 main() {

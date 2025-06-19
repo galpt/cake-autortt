@@ -10,7 +10,7 @@
 VERSION="1.0.1"
 
 # Default configuration
-RTT_UPDATE_INTERVAL=10
+RTT_UPDATE_INTERVAL=5
 MIN_HOSTS=3
 MAX_HOSTS=50
 RTT_MARGIN_PERCENT=10
@@ -23,7 +23,7 @@ DEBUG=0
 CURRENT_RTT_MS=0
 HOSTS_COUNT=0
 PIDFILE="/var/run/cake-autortt.pid"
-TEMP_HOSTS="/tmp/cake-autortt-hosts"
+TEMP_HOSTS="/dev/shm/cake-autortt-hosts"
 
 log_msg() {
 	local level="$1"
@@ -234,11 +234,11 @@ measure_rtt_fping() {
 adjust_cake_rtt() {
 	local target_rtt_ms="$1"
 	
-	# Add margin to measured RTT using awk for arithmetic
+	# Add margin to measured RTT using awk for arithmetic with 2 decimal precision
 	local adjusted_rtt
-	adjusted_rtt=$(echo "$target_rtt_ms $RTT_MARGIN_PERCENT" | awk '{printf "%.0f", $1 * (1 + $2 / 100)}')
+	adjusted_rtt=$(echo "$target_rtt_ms $RTT_MARGIN_PERCENT" | awk '{printf "%.2f", $1 * (1 + $2 / 100)}')
 	
-	# Convert to microseconds for tc command
+	# Convert to microseconds for tc command with proper precision
 	local rtt_us
 	rtt_us=$(echo "$adjusted_rtt" | awk '{printf "%.0f", $1 * 1000}')
 	
