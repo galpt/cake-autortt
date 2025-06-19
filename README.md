@@ -225,6 +225,77 @@ uci set cake-autortt.global.ewma_alpha='0.3'
 uci set cake-autortt.global.probe_interval='3'
 ```
 
+## 🤝 Contributing
+
+We welcome contributions to improve cake-autortt! Here's how you can help:
+
+### How to Contribute
+
+1. **Fork the Repository**
+   ```bash
+   # Fork on GitHub, then clone your fork
+   git clone https://github.com/yourusername/cake-autortt.git
+   cd cake-autortt
+   ```
+
+2. **Create a Feature Branch**
+   ```bash
+   git checkout -b feature/your-improvement
+   ```
+
+3. **Make Your Changes**
+   - Fix bugs or add new features
+   - Test thoroughly on OpenWrt hardware
+   - Follow the existing code style
+   - Add appropriate logging/debug messages
+
+4. **Test Your Changes**
+   ```bash
+   # Test installation
+   ./install.sh
+   
+   # Enable debug mode and monitor
+   uci set cake-autortt.global.debug='1'
+   uci commit cake-autortt
+   /etc/init.d/cake-autortt restart
+   logread | grep cake-autortt
+   ```
+
+5. **Submit a Pull Request**
+   - Describe your changes clearly
+   - Include testing details
+   - Reference any related issues
+
+### Areas for Improvement
+
+We're particularly interested in contributions for:
+
+- **IPv6 Support**: Extending conntrack parsing and fping usage for IPv6
+- **Alternative RTT Sources**: Support for other ping utilities or measurement methods  
+- **Enhanced Filtering**: Better logic for selecting optimal hosts to probe
+- **Performance Optimization**: Reducing CPU usage and memory footprint
+- **Configuration UI**: Web interface integration for easier configuration
+- **Documentation**: Better examples, troubleshooting guides, and use cases
+- **Testing**: Automated tests and validation on different OpenWrt versions
+
+### Bug Reports
+
+If you encounter issues:
+
+1. Enable debug mode: `uci set cake-autortt.global.debug='1'`
+2. Collect logs: `logread | grep cake-autortt > cake-autortt.log`
+3. Include your configuration: `uci show cake-autortt`
+4. Describe your network setup and OpenWrt version
+5. Open an issue with all relevant information
+
+### Code Style
+
+- Use POSIX shell scripting (no bashisms)
+- Follow existing indentation and naming conventions
+- Add comments for complex logic
+- Use descriptive variable names
+- Include error handling and logging
+
 ## 📄 License
 
 This project is released under the same license terms as the reference projects it's based on. See individual source files for specific license information.

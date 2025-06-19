@@ -196,44 +196,42 @@ extract_hosts_from_conntrack() {
 
 measure_rtt_fping() {
 	local hosts_file="$1"
-	local total_rtt=0
-	local valid_responses=0
+	local host_count
+	local alive_count
+	local avg_rtt
 	
 	if [ ! -s "$hosts_file" ]; then
 		log_msg "DEBUG" "No hosts to probe"
 		return 1
 	fi
 	
-	log_msg "DEBUG" "Measuring RTT using fping for $(wc -l < "$hosts_file") hosts"
+	host_count=$(wc -l < "$hosts_file")
+	log_msg "DEBUG" "Measuring RTT using fping for $host_count hosts"
 	
-	# Use fping to measure RTT
-	# -q: quiet, -c 1: one packet per host, -t 3000: 3 second timeout
-	fping -q -c 1 -t 3000 $(tr '\n' ' ' < "$hosts_file") 2>&1 | \
-	grep -E "^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | \
-	while IFS=' ' read -r host colon sent_received_loss avg_min_max_stddev; do
-		# Parse the result line: "1.1.1.1 : xmt/rcv/%loss = 1/1/0%, min/avg/max = 15.2/15.2/15.2"
-		if echo "$sent_received_loss" | grep -q "1/1/0%"; then
-			# Extract average RTT
-			avg_rtt=$(echo "$avg_min_max_stddev" | sed 's/.*min\/avg\/max = [0-9.]*\/\([0-9.]*\)\/.*/\1/')
-			if [ -n "$avg_rtt" ] && [ "$(echo "$avg_rtt > 0" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
-				total_rtt=$(echo "$total_rtt + $avg_rtt" | bc -l)
-				valid_responses=$((valid_responses + 1))
-				log_msg "DEBUG" "Host $host RTT: ${avg_rtt}ms"
-			fi
-		else
-			log_msg "DEBUG" "Host $host: no response"
-		fi
-	done
+	# Use fping with summary statistics
+	# -s: print summary statistics, -t 3000: 3 second timeout per host
+	local fping_output
+	fping_output=$(fping -s -t 3000 $(tr '\n' ' ' < "$hosts_file") 2>&1)
 	
-	if [ "$valid_responses" -ge "$MIN_HOSTS" ]; then
-		# Calculate average RTT
-		local avg_rtt
-		avg_rtt=$(echo "scale=2; $total_rtt / $valid_responses" | bc -l)
-		CURRENT_RTT_MS=$avg_rtt
-		log_msg "DEBUG" "Average RTT from $valid_responses hosts: ${avg_rtt}ms"
+	# Extract alive count and average RTT from summary
+	alive_count=$(echo "$fping_output" | grep "alive" | head -1 | awk '{print $1}')
+	avg_rtt=$(echo "$fping_output" | grep "avg round trip time" | sed 's/.*[[:space:]]\([0-9.]*\)[[:space:]]*ms.*/\1/')
+	
+	log_msg "DEBUG" "fping summary: $alive_count/$host_count hosts alive"
+	
+	# Check if we have enough responding hosts and valid RTT measurement
+	if [ -n "$alive_count" ] && [ -n "$avg_rtt" ] && \
+	   [ "$alive_count" -ge "$MIN_HOSTS" ] && \
+	   [ "$(echo "$avg_rtt > 0" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+		CURRENT_RTT_MS="$avg_rtt"
+		log_msg "DEBUG" "Average RTT from $alive_count hosts: ${avg_rtt}ms"
 		return 0
 	else
-		log_msg "DEBUG" "Not enough valid responses ($valid_responses < $MIN_HOSTS)"
+		if [ -z "$alive_count" ] || [ "$alive_count" -lt "$MIN_HOSTS" ]; then
+			log_msg "DEBUG" "Not enough responding hosts ($alive_count < $MIN_HOSTS)"
+		else
+			log_msg "DEBUG" "Invalid or missing RTT measurement: '$avg_rtt'"
+		fi
 		return 1
 	fi
 }
