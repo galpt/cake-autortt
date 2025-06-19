@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# Restart cake-autortt when network interfaces go up
+# This ensures the service adapts to interface changes
+
+[ "$ACTION" = "ifup" ] || exit 0
+
+# Check if cake-autortt service is enabled
+/etc/init.d/cake-autortt enabled || exit 0
+
+# Check if the interface that came up has CAKE qdisc
+tc qdisc show dev "$INTERFACE" 2>/dev/null | grep -q "qdisc cake" || exit 0
+
+# Restart the service to detect new interfaces
+logger -t "cake-autortt" "Interface $INTERFACE with CAKE qdisc detected, restarting service"
+/etc/init.d/cake-autortt restart 

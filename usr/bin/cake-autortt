@@ -1,0 +1,399 @@
+#!/bin/sh
+
+# cake-autortt - Automatically adjust CAKE qdisc RTT parameter
+# based on measured RTT to active network connections
+#
+# This script monitors active connections using /proc/net/nf_conntrack,
+# probes non-LAN hosts using fping, and adjusts the RTT parameter
+# of CAKE qdisc on both ingress and egress interfaces.
+
+VERSION="1.0.0"
+
+# Default configuration
+PROBE_INTERVAL=5
+RTT_UPDATE_INTERVAL=30
+EWMA_ALPHA=0.1
+MIN_HOSTS=3
+MAX_HOSTS=20
+RTT_MARGIN_PERCENT=10
+DEFAULT_RTT_MS=100
+DL_INTERFACE=""
+UL_INTERFACE=""
+DEBUG=0
+
+# Global variables
+CURRENT_RTT_MS=0
+RTT_EWMA=0
+HOSTS_COUNT=0
+PIDFILE="/var/run/cake-autortt.pid"
+TEMP_HOSTS="/tmp/cake-autortt-hosts"
+
+log_msg() {
+	local level="$1"
+	local message="$2"
+	local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+	
+	# Always log to syslog
+	logger -t "cake-autortt" "$level: $message"
+	
+	# Print to stdout if debug enabled or level is INFO/ERROR
+	if [ "$DEBUG" = "1" ] || [ "$level" = "INFO" ] || [ "$level" = "ERROR" ]; then
+		echo "[$timestamp] cake-autortt $level: $message"
+	fi
+}
+
+show_help() {
+	cat << EOF
+cake-autortt v$VERSION - Automatically adjust CAKE qdisc RTT parameter
+
+Usage: cake-autortt [OPTIONS]
+
+OPTIONS:
+  --probe-interval SECONDS        Interval between RTT probes (default: $PROBE_INTERVAL)
+  --rtt-update-interval SECONDS   Interval between qdisc RTT updates (default: $RTT_UPDATE_INTERVAL)
+  --ewma-alpha FLOAT              EWMA alpha for RTT smoothing (default: $EWMA_ALPHA)
+  --min-hosts NUMBER              Minimum hosts needed for RTT calculation (default: $MIN_HOSTS)
+  --max-hosts NUMBER              Maximum hosts to probe simultaneously (default: $MAX_HOSTS)
+  --rtt-margin-percent PERCENT    Percentage margin added to measured RTT (default: $RTT_MARGIN_PERCENT)
+  --default-rtt-ms MILLISECONDS   Default RTT when no hosts available (default: $DEFAULT_RTT_MS)
+  --dl-interface INTERFACE        Download interface (auto-detected if not specified)
+  --ul-interface INTERFACE        Upload interface (auto-detected if not specified)
+  --debug                         Enable debug logging
+  --help                          Show this help message
+  --version                       Show version information
+
+EXAMPLES:
+  cake-autortt --debug
+  cake-autortt --probe-interval 10 --dl-interface ifb-wan --ul-interface wan
+
+The script automatically detects active network connections from /proc/net/nf_conntrack,
+filters out LAN addresses, and uses fping to measure RTT to external hosts.
+The measured RTT is then used to adjust the CAKE qdisc RTT parameter on both
+ingress and egress interfaces for optimal performance.
+EOF
+}
+
+show_version() {
+	echo "cake-autortt version $VERSION"
+}
+
+parse_args() {
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--probe-interval)
+				PROBE_INTERVAL="$2"
+				shift 2
+				;;
+			--rtt-update-interval)
+				RTT_UPDATE_INTERVAL="$2"
+				shift 2
+				;;
+			--ewma-alpha)
+				EWMA_ALPHA="$2"
+				shift 2
+				;;
+			--min-hosts)
+				MIN_HOSTS="$2"
+				shift 2
+				;;
+			--max-hosts)
+				MAX_HOSTS="$2"
+				shift 2
+				;;
+			--rtt-margin-percent)
+				RTT_MARGIN_PERCENT="$2"
+				shift 2
+				;;
+			--default-rtt-ms)
+				DEFAULT_RTT_MS="$2"
+				shift 2
+				;;
+			--dl-interface)
+				DL_INTERFACE="$2"
+				shift 2
+				;;
+			--ul-interface)
+				UL_INTERFACE="$2"
+				shift 2
+				;;
+			--debug)
+				DEBUG=1
+				shift
+				;;
+			--help)
+				show_help
+				exit 0
+				;;
+			--version)
+				show_version
+				exit 0
+				;;
+			*)
+				echo "Unknown option: $1" >&2
+				echo "Use --help for usage information" >&2
+				exit 1
+				;;
+		esac
+	done
+}
+
+is_lan_address() {
+	local ip="$1"
+	
+	# Check for private IP ranges
+	case "$ip" in
+		10.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*|192.168.*|169.254.*|127.*|224.*|240.*)
+			return 0
+			;;
+		::1|fe80:*|fc*|fd*)
+			return 0
+			;;
+		*)
+			return 1
+			;;
+	esac
+}
+
+extract_hosts_from_conntrack() {
+	# Parse /proc/net/nf_conntrack to extract non-LAN destination addresses
+	local hosts_file="$1"
+	
+	log_msg "DEBUG" "Extracting hosts from conntrack"
+	
+	# Clear the hosts file
+	> "$hosts_file"
+	
+	# Parse conntrack entries
+	# Format: ipv4 2 tcp 6 299 ESTABLISHED src=192.168.1.100 dst=93.184.216.34 ...
+	if [ -f "/proc/net/nf_conntrack" ]; then
+		awk '
+		/^ipv4.*ESTABLISHED/ {
+			# Extract dst= field
+			for (i = 1; i <= NF; i++) {
+				if ($i ~ /^dst=/) {
+					dst = substr($i, 5)  # Remove "dst="
+					print dst
+				}
+			}
+		}
+		' /proc/net/nf_conntrack | while read -r host; do
+			if ! is_lan_address "$host"; then
+				echo "$host" >> "$hosts_file"
+			fi
+		done
+		
+		# Remove duplicates and limit to max hosts
+		sort "$hosts_file" | uniq | head -n "$MAX_HOSTS" > "${hosts_file}.tmp"
+		mv "${hosts_file}.tmp" "$hosts_file"
+		
+		HOSTS_COUNT=$(wc -l < "$hosts_file")
+		log_msg "DEBUG" "Found $HOSTS_COUNT non-LAN hosts"
+	else
+		log_msg "ERROR" "/proc/net/nf_conntrack not available"
+		HOSTS_COUNT=0
+	fi
+}
+
+measure_rtt_fping() {
+	local hosts_file="$1"
+	local total_rtt=0
+	local valid_responses=0
+	
+	if [ ! -s "$hosts_file" ]; then
+		log_msg "DEBUG" "No hosts to probe"
+		return 1
+	fi
+	
+	log_msg "DEBUG" "Measuring RTT using fping for $(wc -l < "$hosts_file") hosts"
+	
+	# Use fping to measure RTT
+	# -q: quiet, -c 1: one packet per host, -t 3000: 3 second timeout
+	fping -q -c 1 -t 3000 $(tr '\n' ' ' < "$hosts_file") 2>&1 | \
+	grep -E "^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | \
+	while IFS=' ' read -r host colon sent_received_loss avg_min_max_stddev; do
+		# Parse the result line: "1.1.1.1 : xmt/rcv/%loss = 1/1/0%, min/avg/max = 15.2/15.2/15.2"
+		if echo "$sent_received_loss" | grep -q "1/1/0%"; then
+			# Extract average RTT
+			avg_rtt=$(echo "$avg_min_max_stddev" | sed 's/.*min\/avg\/max = [0-9.]*\/\([0-9.]*\)\/.*/\1/')
+			if [ -n "$avg_rtt" ] && [ "$(echo "$avg_rtt > 0" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+				total_rtt=$(echo "$total_rtt + $avg_rtt" | bc -l)
+				valid_responses=$((valid_responses + 1))
+				log_msg "DEBUG" "Host $host RTT: ${avg_rtt}ms"
+			fi
+		else
+			log_msg "DEBUG" "Host $host: no response"
+		fi
+	done
+	
+	if [ "$valid_responses" -ge "$MIN_HOSTS" ]; then
+		# Calculate average RTT
+		local avg_rtt
+		avg_rtt=$(echo "scale=2; $total_rtt / $valid_responses" | bc -l)
+		CURRENT_RTT_MS=$avg_rtt
+		log_msg "DEBUG" "Average RTT from $valid_responses hosts: ${avg_rtt}ms"
+		return 0
+	else
+		log_msg "DEBUG" "Not enough valid responses ($valid_responses < $MIN_HOSTS)"
+		return 1
+	fi
+}
+
+update_rtt_ewma() {
+	local new_rtt="$1"
+	
+	if [ "$(echo "$RTT_EWMA == 0" | bc -l 2>/dev/null || echo 1)" = "1" ]; then
+		# Initialize EWMA with first measurement
+		RTT_EWMA="$new_rtt"
+	else
+		# Update EWMA: new_ewma = alpha * new_value + (1 - alpha) * old_ewma
+		RTT_EWMA=$(echo "scale=2; $EWMA_ALPHA * $new_rtt + (1 - $EWMA_ALPHA) * $RTT_EWMA" | bc -l)
+	fi
+	
+	log_msg "DEBUG" "RTT EWMA updated: ${RTT_EWMA}ms"
+}
+
+adjust_cake_rtt() {
+	local target_rtt_ms="$1"
+	
+	# Add margin to measured RTT
+	local adjusted_rtt
+	adjusted_rtt=$(echo "scale=0; $target_rtt_ms * (1 + $RTT_MARGIN_PERCENT / 100)" | bc -l)
+	
+	# Convert to microseconds for tc command
+	local rtt_us
+	rtt_us=$(echo "$adjusted_rtt * 1000" | bc -l | sed 's/\..*//') # Remove decimal part
+	
+	log_msg "INFO" "Adjusting CAKE RTT to ${adjusted_rtt}ms (${rtt_us}us)"
+	
+	# Update download interface
+	if [ -n "$DL_INTERFACE" ]; then
+		if tc qdisc change root dev "$DL_INTERFACE" cake rtt "${rtt_us}us" 2>/dev/null; then
+			log_msg "DEBUG" "Updated RTT on download interface $DL_INTERFACE"
+		else
+			log_msg "ERROR" "Failed to update RTT on download interface $DL_INTERFACE"
+		fi
+	fi
+	
+	# Update upload interface
+	if [ -n "$UL_INTERFACE" ]; then
+		if tc qdisc change root dev "$UL_INTERFACE" cake rtt "${rtt_us}us" 2>/dev/null; then
+			log_msg "DEBUG" "Updated RTT on upload interface $UL_INTERFACE"
+		else
+			log_msg "ERROR" "Failed to update RTT on upload interface $UL_INTERFACE"
+		fi
+	fi
+}
+
+auto_detect_interfaces() {
+	if [ -z "$DL_INTERFACE" ] || [ -z "$UL_INTERFACE" ]; then
+		log_msg "DEBUG" "Auto-detecting CAKE interfaces"
+		
+		# Find interfaces with CAKE qdisc
+		local cake_interfaces
+		cake_interfaces=$(tc qdisc show | grep "qdisc cake" | awk '{print $5}')
+		
+		if [ -z "$DL_INTERFACE" ]; then
+			# Prefer ifb-* interfaces for download
+			DL_INTERFACE=$(echo "$cake_interfaces" | grep "^ifb" | head -1)
+			if [ -z "$DL_INTERFACE" ]; then
+				DL_INTERFACE=$(echo "$cake_interfaces" | head -1)
+			fi
+		fi
+		
+		if [ -z "$UL_INTERFACE" ]; then
+			# Prefer non-ifb interfaces for upload
+			UL_INTERFACE=$(echo "$cake_interfaces" | grep -v "^ifb" | head -1)
+			if [ -z "$UL_INTERFACE" ]; then
+				UL_INTERFACE=$(echo "$cake_interfaces" | tail -1)
+			fi
+		fi
+		
+		log_msg "INFO" "Detected interfaces - DL: $DL_INTERFACE, UL: $UL_INTERFACE"
+	fi
+}
+
+cleanup_and_exit() {
+	log_msg "INFO" "Shutting down cake-autortt"
+	rm -f "$PIDFILE" "$TEMP_HOSTS"
+	exit 0
+}
+
+main_loop() {
+	local last_rtt_update=0
+	local current_time
+	
+	log_msg "INFO" "Starting cake-autortt main loop"
+	log_msg "INFO" "Config: probe_interval=${PROBE_INTERVAL}s, rtt_update_interval=${RTT_UPDATE_INTERVAL}s"
+	log_msg "INFO" "Config: min_hosts=$MIN_HOSTS, max_hosts=$MAX_HOSTS, ewma_alpha=$EWMA_ALPHA"
+	log_msg "INFO" "Config: rtt_margin=${RTT_MARGIN_PERCENT}%, default_rtt=${DEFAULT_RTT_MS}ms"
+	
+	while true; do
+		current_time=$(date +%s)
+		
+		# Extract hosts from conntrack
+		extract_hosts_from_conntrack "$TEMP_HOSTS"
+		
+		# Measure RTT if we have enough hosts
+		if [ "$HOSTS_COUNT" -ge "$MIN_HOSTS" ]; then
+			if measure_rtt_fping "$TEMP_HOSTS"; then
+				update_rtt_ewma "$CURRENT_RTT_MS"
+				
+				# Update CAKE RTT parameter if enough time has passed
+				if [ $((current_time - last_rtt_update)) -ge "$RTT_UPDATE_INTERVAL" ]; then
+					adjust_cake_rtt "$RTT_EWMA"
+					last_rtt_update="$current_time"
+				fi
+			else
+				log_msg "DEBUG" "RTT measurement failed, using default RTT"
+				if [ $((current_time - last_rtt_update)) -ge "$RTT_UPDATE_INTERVAL" ]; then
+					adjust_cake_rtt "$DEFAULT_RTT_MS"
+					last_rtt_update="$current_time"
+				fi
+			fi
+		else
+			log_msg "DEBUG" "Not enough hosts ($HOSTS_COUNT < $MIN_HOSTS), using default RTT"
+			if [ $((current_time - last_rtt_update)) -ge "$RTT_UPDATE_INTERVAL" ]; then
+				adjust_cake_rtt "$DEFAULT_RTT_MS"
+				last_rtt_update="$current_time"
+			fi
+		fi
+		
+		sleep "$PROBE_INTERVAL"
+	done
+}
+
+# Main execution
+parse_args "$@"
+
+# Check dependencies
+command -v fping >/dev/null 2>&1 || {
+	log_msg "ERROR" "fping is required but not installed"
+	exit 1
+}
+
+command -v bc >/dev/null 2>&1 || {
+	log_msg "ERROR" "bc (calculator) is required but not installed"
+	exit 1
+}
+
+command -v tc >/dev/null 2>&1 || {
+	log_msg "ERROR" "tc (traffic control) is required but not installed"
+	exit 1
+}
+
+# Auto-detect interfaces if not specified
+auto_detect_interfaces
+
+if [ -z "$DL_INTERFACE" ] && [ -z "$UL_INTERFACE" ]; then
+	log_msg "ERROR" "No CAKE interfaces found. Please ensure CAKE qdisc is configured."
+	exit 1
+fi
+
+# Set up signal handlers
+trap cleanup_and_exit INT TERM
+
+# Write PID file
+echo $$ > "$PIDFILE"
+
+# Start main loop
+main_loop 
