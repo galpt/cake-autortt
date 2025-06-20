@@ -54,8 +54,6 @@ tc qdisc help | grep cake
 ## 🔧 Installation
 
 > [!IMPORTANT]  
-> **Configure Interface Names First**
-> 
 > Before running the installation script, you MUST edit the configuration file to set the correct interface names for your system.
 
 1. **Edit the configuration file:**
@@ -186,8 +184,8 @@ The service is configured through UCI. Edit `/etc/config/cake-autortt` or use th
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| **`dl_interface`** | **auto** | **🔧 REQUIRED: Download interface name (e.g., 'ifb-wan', 'ifb4eth1')** |
-| **`ul_interface`** | **auto** | **🔧 REQUIRED: Upload interface name (e.g., 'wan', 'eth1')** |
+| `dl_interface` | auto | Download interface name (e.g., 'ifb-wan', 'ifb4eth1') |
+| `ul_interface` | auto | Upload interface name (e.g., 'wan', 'eth1') |
 | `rtt_update_interval` | 5 | Seconds between qdisc RTT parameter updates |
 | `min_hosts` | 3 | Minimum number of hosts required for RTT calculation |
 | `max_hosts` | 100 | Maximum number of hosts to probe simultaneously |
@@ -195,7 +193,8 @@ The service is configured through UCI. Edit `/etc/config/cake-autortt` or use th
 | `default_rtt_ms` | 100 | Default RTT when insufficient hosts available |
 | `debug` | 0 | Enable debug logging (0=disabled, 1=enabled) |
 
-**Note:** While the interface parameters have "auto" as default, auto-detection may not work reliably in all configurations. It is strongly recommended to explicitly set these values.
+> [!NOTE]  
+> While the interface parameters have "auto" as default, auto-detection may not work reliably in all configurations. It is strongly recommended to explicitly set these values.
 
 
 
