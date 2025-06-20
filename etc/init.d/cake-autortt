@@ -9,9 +9,9 @@ PROG="/usr/bin/cake-autortt"
 CONF="/etc/config/cake-autortt"
 
 # Configuration defaults
-rtt_update_interval=10   # seconds between qdisc RTT updates
+rtt_update_interval=30   # seconds between qdisc RTT updates
 min_hosts=3              # minimum number of hosts needed for RTT calculation
-max_hosts=50             # maximum number of hosts to probe simultaneously
+max_hosts=20             # maximum number of hosts to probe simultaneously
 rtt_margin_percent=10    # percentage margin added to measured RTT
 default_rtt_ms=100       # default RTT in case no hosts are available
 dl_interface=""          # download interface (auto-detected if empty)
@@ -20,9 +20,9 @@ debug=0                  # enable debug logging
 
 validate_cake_autortt_section() {
 	uci_load_validate cake-autortt cake-autortt "$1" "$2" \
-		'rtt_update_interval:uinteger:10' \
+		'rtt_update_interval:uinteger:30' \
 		'min_hosts:uinteger:3' \
-		'max_hosts:uinteger:50' \
+		'max_hosts:uinteger:20' \
 		'rtt_margin_percent:uinteger:10' \
 		'default_rtt_ms:uinteger:100' \
 		'dl_interface:string' \
