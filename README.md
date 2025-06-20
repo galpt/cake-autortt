@@ -4,6 +4,33 @@
 
 `cake-autortt` is an OpenWrt service that intelligently monitors active network connections and automatically adjusts the RTT (Round Trip Time) parameter of CAKE qdisc on both ingress and egress interfaces for optimal network performance.
 
+## 🌍 Why This Matters for Your Internet Experience
+
+Most users are familiar with the fast loading times of major websites like YouTube, Netflix, and Google - these sites use Content Delivery Networks (CDNs) that place servers very close to users, typically resulting in response times under 50-100ms. However, the internet is much larger than these big platforms.
+
+**When you browse beyond the major CDN-backed sites, you encounter a diverse world of servers:**
+- **Local/Regional Services**: Small businesses, local news sites, community forums, and regional services often have servers within your country or region (10-50ms RTT)
+- **International Content**: Specialized websites, academic resources, gaming servers, and niche services may be hosted continents away (100-500ms RTT)  
+- **Remote Infrastructure**: Some services, particularly in developing regions or specialized applications, may have significantly higher latencies
+
+**The CAKE RTT parameter controls how aggressively the queue management algorithm responds to congestion.** By default, CAKE uses a 100ms RTT assumption that works reasonably well for general internet traffic. However:
+
+- **Too Low RTT Setting**: If CAKE thinks the network RTT is shorter than reality, it becomes too aggressive in dropping packets when queues build up, potentially reducing throughput for distant servers
+- **Too High RTT Setting**: If CAKE thinks the network RTT is longer than reality, it becomes too conservative and allows larger queues to build up, creating unnecessary latency for nearby servers
+
+**Real-World Impact Examples:**
+- **Singapore User → German Server**: Without RTT adjustment, a user in Singapore accessing a German website (≈180ms RTT) might experience reduced throughput because CAKE's default 100ms setting causes premature packet drops
+- **Rural US → Regional Server**: A user in rural US accessing a regional server (≈25ms RTT) might experience higher latency than necessary because CAKE's default 100ms setting allows queues to grow larger than needed
+- **Gaming/Real-time Applications**: Applications sensitive to both latency and throughput benefit significantly from RTT tuning that matches actual network conditions
+
+**How cake-autortt Helps:**
+By automatically measuring the actual RTT to the servers you're communicating with and adjusting CAKE's parameters accordingly, you get:
+- **Snappier response** when accessing nearby servers (shorter RTT → more aggressive queue management)
+- **Better throughput** when accessing distant servers (longer RTT → more patient queue management)  
+- **Optimal bufferbloat control** that adapts to real network conditions rather than assumptions
+
+This is particularly valuable for users who regularly access diverse content sources, work with international services, or live in areas where internet traffic frequently traverses long distances.
+
 ## 🚀 Features
 
 - **Automatic RTT Detection**: Monitors active connections via `/proc/net/nf_conntrack` and measures RTT to external hosts
