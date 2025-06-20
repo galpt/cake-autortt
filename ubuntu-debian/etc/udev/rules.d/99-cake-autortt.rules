@@ -1,0 +1,9 @@
+# udev rules for cake-autortt service
+# This rule restarts cake-autortt when network interfaces with CAKE qdisc come up
+# Replaces OpenWrt hotplug.d functionality
+
+# When a network interface comes up, check if it has CAKE qdisc and restart service
+ACTION=="add", SUBSYSTEM=="net", KERNEL=="eth*|en*|wl*|ifb*", RUN+="/bin/bash -c 'sleep 2; if /sbin/tc qdisc show dev %k 2>/dev/null | grep -q \"qdisc cake\"; then /bin/systemctl --no-block restart cake-autortt.service; fi'"
+
+# Also trigger on interface state changes
+ACTION=="change", SUBSYSTEM=="net", KERNEL=="eth*|en*|wl*|ifb*", ATTR{operstate}=="up", RUN+="/bin/bash -c 'sleep 2; if /sbin/tc qdisc show dev %k 2>/dev/null | grep -q \"qdisc cake\"; then /bin/systemctl --no-block restart cake-autortt.service; fi'" 

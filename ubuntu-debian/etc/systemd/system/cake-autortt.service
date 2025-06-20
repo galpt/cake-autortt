@@ -1,0 +1,42 @@
+[Unit]
+Description=CAKE Auto RTT - Automatically adjust CAKE qdisc RTT parameter
+Documentation=https://github.com/galpt/cake-autortt
+After=network.target network-online.target
+Wants=network-online.target
+Requires=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/cake-autortt
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=10
+KillMode=process
+TimeoutStopSec=30
+PIDFile=/var/run/cake-autortt.pid
+
+# Security settings
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/var/run /tmp
+ProtectHome=yes
+ProtectKernelTunables=no
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RemoveIPC=yes
+
+# Network capabilities (needed for tc and fping)
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_ADMIN
+
+# Environment
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+EnvironmentFile=-/etc/default/cake-autortt
+
+[Install]
+WantedBy=multi-user.target 

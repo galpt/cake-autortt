@@ -1,5 +1,8 @@
 # cake-autortt
 
+> [!NOTE]  
+> If you're looking for the **Ubuntu/Debian version**, check the `ubuntu-debian/` folder. However, please note that only the OpenWrt version is personally tested daily - the Ubuntu/Debian port is provided as-is for the community.
+
 **Automatically adjust CAKE qdisc RTT parameter based on measured network conditions**
 
 `cake-autortt` is an OpenWrt service that intelligently monitors active network connections and automatically adjusts the RTT (Round Trip Time) parameter of CAKE qdisc on both ingress and egress interfaces for optimal network performance.

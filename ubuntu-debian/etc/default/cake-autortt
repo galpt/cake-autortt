@@ -1,0 +1,36 @@
+# cake-autortt configuration file for Ubuntu/Debian
+# This file configures the cake-autortt service
+# Edit this file and restart the service: sudo systemctl restart cake-autortt
+
+# Network interfaces (REQUIRED - adjust for your setup)
+# Set these to match your CAKE-enabled interfaces
+DL_INTERFACE="auto"          # Download interface (e.g., "eth0", "ifb0", "enp3s0")
+UL_INTERFACE="auto"          # Upload interface (e.g., "eth0", "wlan0", "enp3s0")
+
+# Timing parameters
+RTT_UPDATE_INTERVAL=30       # Seconds between qdisc RTT parameter updates
+MIN_HOSTS=3                  # Minimum number of hosts required for RTT calculation
+MAX_HOSTS=20                 # Maximum number of hosts to probe simultaneously
+RTT_MARGIN_PERCENT=10        # Safety margin added to measured RTT (percentage)
+DEFAULT_RTT_MS=100           # Default RTT when insufficient hosts available
+
+# Debugging
+DEBUG=0                      # Enable debug logging (0=disabled, 1=enabled)
+
+# Examples of interface configuration:
+#
+# Simple setup (same interface for both directions):
+# DL_INTERFACE="eth0"
+# UL_INTERFACE="eth0"
+#
+# Advanced setup with ifb interface for download shaping:
+# DL_INTERFACE="ifb0"         # Download interface (ifb for ingress shaping)
+# UL_INTERFACE="eth0"         # Upload interface (physical interface)
+#
+# Modern interface names:
+# DL_INTERFACE="enp3s0"       # PCI bus interface naming
+# UL_INTERFACE="enp3s0"
+#
+# WiFi interface:
+# DL_INTERFACE="wlan0"
+# UL_INTERFACE="wlan0" 
