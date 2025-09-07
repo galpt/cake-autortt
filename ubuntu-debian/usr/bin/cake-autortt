@@ -9,7 +9,7 @@
 # probes non-LAN hosts using ping (3 pings per host sequentially), and adjusts
 # of CAKE qdisc on both ingress and egress interfaces.
 
-VERSION="1.2.1-ubuntu"
+VERSION="1.2.2-ubuntu"
 
 # Configuration file
 CONFIG_FILE="/etc/default/cake-autortt"
@@ -319,14 +319,9 @@ measure_rtt_ping() {
 		local avg_rtt
 		avg_rtt=$(echo "$total_rtt $alive_count" | awk '{printf "%.3f", $1 / $2}')
 		
-		# Use worst RTT if it's higher than average, otherwise use average
-		if [ "$(echo "$worst_rtt > $avg_rtt" | awk '{print ($1 > $2)}')" = "1" ]; then
-			CURRENT_RTT_MS="$worst_rtt"
-			log_msg "DEBUG" "Using worst RTT: ${CURRENT_RTT_MS}ms (avg: ${avg_rtt}ms, worst: ${worst_rtt}ms)"
-		else
-			CURRENT_RTT_MS="$avg_rtt"
-			log_msg "DEBUG" "Using average RTT: ${CURRENT_RTT_MS}ms (avg: ${avg_rtt}ms, worst: ${worst_rtt}ms)"
-		fi
+		# Always use worst RTT to ensure high-latency hosts work properly
+		CURRENT_RTT_MS="$worst_rtt"
+		log_msg "DEBUG" "Using worst RTT: ${CURRENT_RTT_MS}ms (avg: ${avg_rtt}ms, worst: ${worst_rtt}ms)"
 		
 		return 0
 	fi
