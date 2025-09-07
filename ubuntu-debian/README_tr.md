@@ -328,14 +328,14 @@ Kurulum ve başlatmadan sonra şunları gözlemlemelisiniz:
 ### Anında etkiler
 - Hizmet systemd aracılığıyla otomatik olarak başlar ve bağlantıları izlemeye başlar
 - RTT ölçümleri sistem günlüklerine kaydedilir (debug etkinse)
-- CAKE qdisc RTT parametresi ölçülen ağ koşullarına göre her 30 saniyede güncellenir
+- CAKE qdisc RTT parametresi ölçülen ağ koşullarına göre her 5 saniyede güncellenir
 - Yüksek hassasiyetli RTT değerleri (örn. 44.89ms) CAKE qdisc'e uygulanır
 
 ### Uzun vadeli faydalar
 - **Gelişmiş yanıt verme**: RTT parametresi gerçek ağ koşullarıyla sürekli güncel tutulur
 - **Daha iyi Bufferbloat kontrolü**: CAKE kuyruk yönetimi hakkında daha bilinçli kararlar verebilir
 - **Uyarlanabilir performans**: Değişen ağ koşullarına otomatik olarak uyum sağlar (uydu, mobil, tıkanık bağlantılar)
-- **Daha yüksek hassasiyet**: Ağ koşullarının daha iyi temsili için maksimum 20 host örnekler
+- **Daha yüksek hassasiyet**: Ağ koşullarının daha iyi temsili için maksimum 100 host (yapılandırılabilir) örnekler
 
 ### İzleme
 

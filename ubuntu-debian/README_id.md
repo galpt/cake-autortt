@@ -328,14 +328,14 @@ Setelah instalasi dan startup, Anda harus mengamati:
 ### Efek Langsung
 - Layanan mulai secara otomatis melalui systemd dan mulai memantau koneksi
 - Pengukuran RTT dicatat ke journal sistem (jika debug diaktifkan)
-- Parameter RTT CAKE qdisc diperbarui setiap 30 detik berdasarkan kondisi jaringan yang diukur
+- Parameter RTT CAKE qdisc diperbarui setiap 5 detik berdasarkan kondisi jaringan yang diukur
 - Nilai RTT presisi tinggi (misalnya 44.89ms) diterapkan ke CAKE qdisc
 
 ### Manfaat Jangka Panjang
 - **Responsivitas yang Ditingkatkan**: Parameter RTT tetap terkini dengan kondisi jaringan aktual
 - **Kontrol Bufferbloat yang Lebih Baik**: CAKE dapat membuat keputusan yang lebih terinformasi tentang manajemen antrian
 - **Performa Adaptif**: Secara otomatis menyesuaikan dengan kondisi jaringan yang berubah (satelit, seluler, link yang macet)
-- **Akurasi yang Lebih Tinggi**: Sampling hingga 20 host untuk representasi kondisi jaringan yang lebih baik
+- **Akurasi yang Lebih Tinggi**: Sampling hingga 100 host (dapat dikonfigurasi) untuk representasi kondisi jaringan yang lebih baik
 
 ### Pemantauan
 

@@ -205,7 +205,7 @@ uci set cake-autortt.global.ul_interface='your-upload-interface'
 uci commit cake-autortt
 
 # 其他可选配置更改
-uci set cake-autortt.global.rtt_update_interval='30'
+uci set cake-autortt.global.rtt_update_interval='5'
 uci set cake-autortt.global.debug='1'
 uci commit cake-autortt
 
@@ -280,14 +280,14 @@ uci commit cake-autortt
 ### 立即效果
 - 服务自动启动并开始监控连接
 - RTT 测量记录到系统日志（如果启用调试）
-- 基于测量的网络条件每 30 秒更新一次 CAKE qdisc RTT 参数
+- 基于测量的网络条件每 5 秒更新一次 CAKE qdisc RTT 参数
 - 高精度 RTT 值（例如，44.89ms）应用于 CAKE qdisc
 
 ### 长期好处
 - **改善的响应性**：RTT 参数与实际网络条件保持同步
 - **更好的缓冲膨胀控制**：CAKE 可以对队列管理做出更明智的决策
 - **自适应性能**：自动适应变化的网络条件（卫星、蜂窝、拥塞链路）
-- **更高的准确性**：采样多达 20 个主机以更好地代表网络条件
+- **更高的准确性**：采样多达 100 个主机（可配置）以更好地代表网络条件
 
 ### 监控
 

@@ -328,14 +328,14 @@ Sau khi cài đặt và khởi động, bạn nên quan sát:
 ### Hiệu ứng tức thì
 - Dịch vụ tự động khởi động qua systemd và bắt đầu giám sát kết nối
 - Các phép đo RTT được ghi vào log hệ thống (nếu debug được kích hoạt)
-- Tham số RTT CAKE qdisc được cập nhật mỗi 30 giây dựa trên điều kiện mạng đo được
+- Tham số RTT CAKE qdisc được cập nhật mỗi 5 giây dựa trên điều kiện mạng đo được
 - Giá trị RTT độ chính xác cao (ví dụ: 44.89ms) được áp dụng cho CAKE qdisc
 
 ### Lợi ích dài hạn
 - **Cải thiện khả năng phản hồi**: Tham số RTT luôn cập nhật với điều kiện mạng thực tế
 - **Kiểm soát Bufferbloat tốt hơn**: CAKE có thể đưa ra quyết định thông tin hơn về quản lý hàng đợi
 - **Hiệu suất thích ứng**: Tự động thích ứng với điều kiện mạng thay đổi (vệ tinh, di động, liên kết tắc nghẽn)
-- **Độ chính xác cao hơn**: Lấy mẫu tối đa 20 host để đại diện tốt hơn cho điều kiện mạng
+- **Độ chính xác cao hơn**: Lấy mẫu lên đến 100 host (có thể cấu hình) để đại diện tốt hơn cho điều kiện mạng
 
 ### Giám sát
 

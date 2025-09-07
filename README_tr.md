@@ -205,7 +205,7 @@ uci set cake-autortt.global.ul_interface='your-upload-interface'
 uci commit cake-autortt
 
 # Diğer isteğe bağlı yapılandırma değişiklikleri
-uci set cake-autortt.global.rtt_update_interval='30'
+uci set cake-autortt.global.rtt_update_interval='5'
 uci set cake-autortt.global.debug='1'
 uci commit cake-autortt
 
@@ -280,14 +280,14 @@ Kurulum ve başlatmadan sonra şunları gözlemlemelisiniz:
 ### Anında Etkiler
 - Hizmet otomatik olarak başlar ve bağlantıları izlemeye başlar
 - RTT ölçümleri sistem günlüğüne kaydedilir (hata ayıklama etkinse)
-- CAKE qdisc RTT parametresi ölçülen ağ koşullarına göre her 30 saniyede bir güncellenir
+- CAKE qdisc RTT parametresi ölçülen ağ koşullarına göre her 5 saniyede bir güncellenir
 - Yüksek hassasiyetli RTT değerleri (örn. 44.89ms) CAKE qdisc'e uygulanır
 
 ### Uzun Vadeli Faydalar
 - **Gelişmiş Yanıt Verme**: RTT parametresi gerçek ağ koşullarıyla güncel tutulur
 - **Daha İyi Bufferbloat Kontrolü**: CAKE daha bilgili kuyruk yönetimi kararları verebilir
 - **Uyarlanabilir Performans**: Değişen ağ koşullarına otomatik olarak uyum sağlar (uydu, mobil, tıkanık bağlantılar)
-- **Daha Yüksek Doğruluk**: Ağ koşullarının daha iyi temsili için 20'ye kadar host örnekler
+- **Daha Yüksek Doğruluk**: Ağ koşullarının daha iyi temsili için 100'e kadar host (yapılandırılabilir) örnekler
 
 ### İzleme
 

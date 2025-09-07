@@ -205,7 +205,7 @@ uci set cake-autortt.global.ul_interface='your-upload-interface'
 uci commit cake-autortt
 
 # Other optional configuration changes
-uci set cake-autortt.global.rtt_update_interval='30'
+uci set cake-autortt.global.rtt_update_interval='5'
 uci set cake-autortt.global.debug='1'
 uci commit cake-autortt
 
@@ -282,14 +282,14 @@ After installation and startup, you should observe:
 ### Immediate Effects
 - Service starts automatically and begins monitoring connections
 - RTT measurements logged to system log (if debug enabled)
-- CAKE qdisc RTT parameter updated every 30 seconds based on measured network conditions
+- CAKE qdisc RTT parameter updated every 5 seconds based on measured network conditions
 - High precision RTT values (e.g., 44.89ms) applied to CAKE qdisc
 
 ### Long-term Benefits
 - **Improved Responsiveness**: RTT parameter stays current with actual network conditions
 - **Better Bufferbloat Control**: CAKE can make more informed decisions about queue management
 - **Adaptive Performance**: Automatically adjusts to changing network conditions (satellite, cellular, congested links)
-- **Higher Accuracy**: Samples up to 20 hosts for better representation of network conditions
+- **Higher Accuracy**: Samples up to 100 hosts (configurable) for better representation of network conditions
 
 ### Monitoring
 

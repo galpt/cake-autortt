@@ -205,7 +205,7 @@ uci set cake-autortt.global.ul_interface='your-upload-interface'
 uci commit cake-autortt
 
 # Các thay đổi cấu hình tùy chọn khác
-uci set cake-autortt.global.rtt_update_interval='30'
+uci set cake-autortt.global.rtt_update_interval='5'
 uci set cake-autortt.global.debug='1'
 uci commit cake-autortt
 
@@ -280,14 +280,14 @@ Sau khi cài đặt và khởi động, bạn nên quan sát:
 ### Hiệu ứng Ngay lập tức
 - Dịch vụ khởi động tự động và bắt đầu giám sát kết nối
 - Các phép đo RTT được ghi vào log hệ thống (nếu debug được bật)
-- Tham số CAKE qdisc RTT được cập nhật mỗi 30 giây dựa trên điều kiện mạng đo được
+- Tham số CAKE qdisc RTT được cập nhật mỗi 5 giây dựa trên điều kiện mạng đo được
 - Giá trị RTT độ chính xác cao (ví dụ: 44.89ms) được áp dụng cho CAKE qdisc
 
 ### Lợi ích Dài hạn
 - **Cải thiện Phản hồi**: Tham số RTT luôn cập nhật với điều kiện mạng thực tế
 - **Kiểm soát Bufferbloat Tốt hơn**: CAKE có thể đưa ra quyết định quản lý hàng đợi có thông tin hơn
 - **Hiệu suất Thích ứng**: Tự động thích ứng với điều kiện mạng thay đổi (vệ tinh, di động, liên kết tắc nghẽn)
-- **Độ chính xác Cao hơn**: Lấy mẫu lên đến 20 host để đại diện tốt hơn cho điều kiện mạng
+- **Độ chính xác Cao hơn**: Lấy mẫu lên đến 100 host (có thể cấu hình) để đại diện tốt hơn cho điều kiện mạng
 
 ### Giám sát
 
