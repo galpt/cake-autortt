@@ -215,7 +215,7 @@ The service is configured through UCI. Edit `/etc/config/cake-autortt` or use th
 |-----------|---------|-------------|
 | `dl_interface` | auto | Download interface name (e.g., 'ifb-wan', 'ifb4eth1') |
 | `ul_interface` | auto | Upload interface name (e.g., 'wan', 'eth1') |
-| `rtt_update_interval` | 30 | Seconds between qdisc RTT parameter updates |
+| `rtt_update_interval` | 5 | Seconds between qdisc RTT parameter updates |
 | `min_hosts` | 3 | Minimum number of hosts required for RTT calculation |
 | `max_hosts` | 100 | Maximum number of hosts to probe simultaneously |
 | `rtt_margin_percent` | 10 | Safety margin added to measured RTT (percentage) |
@@ -224,6 +224,9 @@ The service is configured through UCI. Edit `/etc/config/cake-autortt` or use th
 
 > [!NOTE]  
 > While the interface parameters have "auto" as default, auto-detection may not work reliably in all configurations. It is strongly recommended to explicitly set these values.
+
+> [!TIP]  
+> For high-activity networks (e.g., university campuses, public networks with many active users), it's recommended to set `rtt_update_interval` to 5 seconds instead of the default 30 seconds. This allows the script to adapt more quickly to changing network conditions when there's constant traffic from multiple users.
 
 
 

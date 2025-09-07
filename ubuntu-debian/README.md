@@ -243,7 +243,7 @@ The service is configured through `/etc/default/cake-autortt`. All parameters ca
 |-----------|---------|-------------|
 | `DL_INTERFACE` | auto | Download interface name (e.g., 'eth0', 'ifb0') |
 | `UL_INTERFACE` | auto | Upload interface name (e.g., 'eth0', 'enp3s0') |
-| `RTT_UPDATE_INTERVAL` | 30 | Seconds between qdisc RTT parameter updates |
+| `RTT_UPDATE_INTERVAL` | 5 | Seconds between qdisc RTT parameter updates |
 | `MIN_HOSTS` | 3 | Minimum number of hosts required for RTT calculation |
 | `MAX_HOSTS` | 100 | Maximum number of hosts to probe simultaneously |
 | `RTT_MARGIN_PERCENT` | 10 | Safety margin added to measured RTT (percentage) |
@@ -252,6 +252,9 @@ The service is configured through `/etc/default/cake-autortt`. All parameters ca
 
 > [!NOTE]  
 > While the interface parameters have "auto" as default, auto-detection may not work reliably in all configurations. It is strongly recommended to explicitly set these values.
+
+> [!TIP]  
+> For high-activity networks (e.g., university campuses, public networks with many active users), it's recommended to set `RTT_UPDATE_INTERVAL` to 5 seconds instead of the default 30 seconds. This allows the script to adapt more quickly to changing network conditions when there's constant traffic from multiple users.
 
 ### Example Configuration
 
@@ -263,7 +266,7 @@ DL_INTERFACE="ifb0"      # Download interface
 UL_INTERFACE="eth0"      # Upload interface
 
 # Timing parameters
-RTT_UPDATE_INTERVAL=30   # Update RTT every 30 seconds
+RTT_UPDATE_INTERVAL=5    # Update RTT every 5 seconds
 MIN_HOSTS=3              # Need at least 3 hosts for measurement
 MAX_HOSTS=100            # Sample up to 100 hosts
 RTT_MARGIN_PERCENT=10    # Add 10% safety margin

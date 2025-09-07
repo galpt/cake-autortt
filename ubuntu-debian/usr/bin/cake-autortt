@@ -9,13 +9,13 @@
 # probes non-LAN hosts using ping (3 pings per host sequentially), and adjusts
 # of CAKE qdisc on both ingress and egress interfaces.
 
-VERSION="1.0.9-ubuntu"
+VERSION="1.1.0-ubuntu"
 
 # Configuration file
 CONFIG_FILE="/etc/default/cake-autortt"
 
 # Default configuration
-RTT_UPDATE_INTERVAL=30
+RTT_UPDATE_INTERVAL=5
 MIN_HOSTS=3
 MAX_HOSTS=20
 RTT_MARGIN_PERCENT=10

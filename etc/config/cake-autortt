@@ -1,5 +1,5 @@
 config cake-autortt 'global'
-	option rtt_update_interval '30'
+	option rtt_update_interval '5'
 	option min_hosts '3'
 	option max_hosts '100'
 	option rtt_margin_percent '10'
