@@ -245,7 +245,7 @@ The service is configured through `/etc/default/cake-autortt`. All parameters ca
 | `UL_INTERFACE` | auto | Upload interface name (e.g., 'eth0', 'enp3s0') |
 | `RTT_UPDATE_INTERVAL` | 30 | Seconds between qdisc RTT parameter updates |
 | `MIN_HOSTS` | 3 | Minimum number of hosts required for RTT calculation |
-| `MAX_HOSTS` | 20 | Maximum number of hosts to probe simultaneously |
+| `MAX_HOSTS` | 100 | Maximum number of hosts to probe simultaneously |
 | `RTT_MARGIN_PERCENT` | 10 | Safety margin added to measured RTT (percentage) |
 | `DEFAULT_RTT_MS` | 100 | Default RTT when insufficient hosts available |
 | `DEBUG` | 0 | Enable debug logging (0=disabled, 1=enabled) |
@@ -265,7 +265,7 @@ UL_INTERFACE="eth0"      # Upload interface
 # Timing parameters
 RTT_UPDATE_INTERVAL=30   # Update RTT every 30 seconds
 MIN_HOSTS=3              # Need at least 3 hosts for measurement
-MAX_HOSTS=20             # Sample up to 20 hosts
+MAX_HOSTS=100            # Sample up to 100 hosts
 RTT_MARGIN_PERCENT=10    # Add 10% safety margin
 DEFAULT_RTT_MS=100       # Fallback RTT value
 

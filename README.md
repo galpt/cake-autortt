@@ -217,7 +217,7 @@ The service is configured through UCI. Edit `/etc/config/cake-autortt` or use th
 | `ul_interface` | auto | Upload interface name (e.g., 'wan', 'eth1') |
 | `rtt_update_interval` | 30 | Seconds between qdisc RTT parameter updates |
 | `min_hosts` | 3 | Minimum number of hosts required for RTT calculation |
-| `max_hosts` | 20 | Maximum number of hosts to probe simultaneously |
+| `max_hosts` | 100 | Maximum number of hosts to probe simultaneously |
 | `rtt_margin_percent` | 10 | Safety margin added to measured RTT (percentage) |
 | `default_rtt_ms` | 100 | Default RTT when insufficient hosts available |
 | `debug` | 0 | Enable debug logging (0=disabled, 1=enabled) |
