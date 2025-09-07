@@ -9,7 +9,7 @@
 # probes non-LAN hosts using ping (3 pings per host sequentially), and adjusts
 # of CAKE qdisc on both ingress and egress interfaces.
 
-VERSION="1.1.0-ubuntu"
+VERSION="1.1.1-ubuntu"
 
 # Configuration file
 CONFIG_FILE="/etc/default/cake-autortt"
@@ -75,6 +75,12 @@ log_msg() {
 	local level="$1"
 	local message="$2"
 	local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+	
+	# Only log DEBUG messages to journal/syslog if debug is enabled
+	if [ "$level" = "DEBUG" ] && [ "$DEBUG" != "1" ]; then
+		# Skip DEBUG messages when debug is disabled
+		return
+	fi
 	
 	# Log to systemd journal (appears in journalctl)
 	if command -v systemd-cat >/dev/null 2>&1; then
@@ -291,9 +297,11 @@ measure_rtt_ping() {
 			host_avg_rtt=$(echo "$host_rtt_sum $host_rtt_count" | awk '{printf "%.3f", $1 / $2}')
 			total_rtt=$(echo "$total_rtt $host_avg_rtt" | awk '{print $1 + $2}')
 			alive_count=$((alive_count + 1))
-			log_msg "DEBUG" "Host $host: avg RTT ${host_avg_rtt}ms from $host_rtt_count pings"
+			# Only log individual host RTT in very verbose debug mode
+			# log_msg "DEBUG" "Host $host: avg RTT ${host_avg_rtt}ms from $host_rtt_count pings"
 		else
-			log_msg "DEBUG" "Host $host: no response"
+			# Only log non-responsive hosts in very verbose debug mode
+			# log_msg "DEBUG" "Host $host: no response"
 		fi
 	done < "$hosts_file"
 	

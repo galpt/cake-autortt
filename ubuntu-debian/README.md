@@ -245,7 +245,7 @@ The service is configured through `/etc/default/cake-autortt`. All parameters ca
 | `UL_INTERFACE` | auto | Upload interface name (e.g., 'eth0', 'enp3s0') |
 | `RTT_UPDATE_INTERVAL` | 5 | Seconds between qdisc RTT parameter updates |
 | `MIN_HOSTS` | 3 | Minimum number of hosts required for RTT calculation |
-| `MAX_HOSTS` | 100 | Maximum number of hosts to probe simultaneously |
+| `MAX_HOSTS` | 100 | Maximum number of hosts to probe sequentially |
 | `RTT_MARGIN_PERCENT` | 10 | Safety margin added to measured RTT (percentage) |
 | `DEFAULT_RTT_MS` | 100 | Default RTT when insufficient hosts available |
 | `DEBUG` | 0 | Enable debug logging (0=disabled, 1=enabled) |
@@ -254,7 +254,7 @@ The service is configured through `/etc/default/cake-autortt`. All parameters ca
 > While the interface parameters have "auto" as default, auto-detection may not work reliably in all configurations. It is strongly recommended to explicitly set these values.
 
 > [!TIP]  
-> For high-activity networks (e.g., university campuses, public networks with many active users), it's recommended to set `RTT_UPDATE_INTERVAL` to 5 seconds instead of the default 30 seconds. This allows the script to adapt more quickly to changing network conditions when there's constant traffic from multiple users.
+> For high-activity networks (e.g., university campuses, public networks with many active users), consider adjusting `RTT_UPDATE_INTERVAL` based on your network's characteristics. The default 5 seconds works well for most scenarios, but you may increase it to 10-15 seconds for more stable networks or decrease it to 3 seconds for very dynamic environments.
 
 ### Example Configuration
 
@@ -393,6 +393,9 @@ Jan 09 18:34:35 hostname cake-autortt[1234]: INFO: Adjusting CAKE RTT to 49.72ms
 Jan 09 18:34:35 hostname cake-autortt[1234]: DEBUG: Updated RTT on download interface ifb0
 Jan 09 18:34:35 hostname cake-autortt[1234]: DEBUG: Updated RTT on upload interface eth0
 ```
+
+> [!NOTE]  
+> **Memory-Efficient Logging**: Debug logging is optimized to prevent log flooding. Individual host RTT measurements are not logged to reduce memory usage and disk writes. Only summary information is logged to systemd journal, making it suitable for continuous operation without excessive log growth.
 
 ## 🔄 Differences from OpenWrt Version
 

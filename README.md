@@ -217,7 +217,7 @@ The service is configured through UCI. Edit `/etc/config/cake-autortt` or use th
 | `ul_interface` | auto | Upload interface name (e.g., 'wan', 'eth1') |
 | `rtt_update_interval` | 5 | Seconds between qdisc RTT parameter updates |
 | `min_hosts` | 3 | Minimum number of hosts required for RTT calculation |
-| `max_hosts` | 100 | Maximum number of hosts to probe simultaneously |
+| `max_hosts` | 100 | Maximum number of hosts to probe sequentially |
 | `rtt_margin_percent` | 10 | Safety margin added to measured RTT (percentage) |
 | `default_rtt_ms` | 100 | Default RTT when insufficient hosts available |
 | `debug` | 0 | Enable debug logging (0=disabled, 1=enabled) |
@@ -226,7 +226,7 @@ The service is configured through UCI. Edit `/etc/config/cake-autortt` or use th
 > While the interface parameters have "auto" as default, auto-detection may not work reliably in all configurations. It is strongly recommended to explicitly set these values.
 
 > [!TIP]  
-> For high-activity networks (e.g., university campuses, public networks with many active users), it's recommended to set `rtt_update_interval` to 5 seconds instead of the default 30 seconds. This allows the script to adapt more quickly to changing network conditions when there's constant traffic from multiple users.
+> For high-activity networks (e.g., university campuses, public networks with many active users), consider adjusting `rtt_update_interval` based on your network's characteristics. The default 5 seconds works well for most scenarios, but you may increase it to 10-15 seconds for more stable networks or decrease it to 3 seconds for very dynamic environments.
 
 
 
@@ -334,6 +334,9 @@ With debug enabled (`uci set cake-autortt.global.debug='1'`), the service provid
 [2025-01-09 18:34:35] cake-autortt DEBUG: Updated RTT on download interface ifb-wan
 [2025-01-09 18:34:35] cake-autortt DEBUG: Updated RTT on upload interface wan
 ```
+
+> [!NOTE]  
+> **Memory-Efficient Logging**: Debug logging is optimized to prevent log flooding. Individual host RTT measurements are not logged to reduce memory usage and disk writes. Only summary information is logged, making it suitable for continuous operation without excessive log growth.
 
 
 ## 📄 License
