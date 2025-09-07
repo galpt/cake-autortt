@@ -25,6 +25,26 @@ HOSTS_COUNT=0
 PIDFILE="/var/run/cake-autortt.pid"
 TEMP_HOSTS="/dev/shm/cake-autortt-hosts"
 
+# Load configuration from UCI
+load_config() {
+	# Load UCI configuration if available
+	if command -v uci >/dev/null 2>&1; then
+		# Read configuration values from UCI, keeping defaults if not set
+		RTT_UPDATE_INTERVAL=$(uci get cake-autortt.global.rtt_update_interval 2>/dev/null || echo "$RTT_UPDATE_INTERVAL")
+		MIN_HOSTS=$(uci get cake-autortt.global.min_hosts 2>/dev/null || echo "$MIN_HOSTS")
+		MAX_HOSTS=$(uci get cake-autortt.global.max_hosts 2>/dev/null || echo "$MAX_HOSTS")
+		RTT_MARGIN_PERCENT=$(uci get cake-autortt.global.rtt_margin_percent 2>/dev/null || echo "$RTT_MARGIN_PERCENT")
+		DEFAULT_RTT_MS=$(uci get cake-autortt.global.default_rtt_ms 2>/dev/null || echo "$DEFAULT_RTT_MS")
+		DL_INTERFACE=$(uci get cake-autortt.global.dl_interface 2>/dev/null || echo "$DL_INTERFACE")
+		UL_INTERFACE=$(uci get cake-autortt.global.ul_interface 2>/dev/null || echo "$UL_INTERFACE")
+		DEBUG=$(uci get cake-autortt.global.debug 2>/dev/null || echo "$DEBUG")
+		
+		log_msg "DEBUG" "Loaded UCI config: max_hosts=$MAX_HOSTS, min_hosts=$MIN_HOSTS"
+	else
+		log_msg "WARN" "UCI not available, using default configuration"
+	fi
+}
+
 log_msg() {
 	local level="$1"
 	local message="$2"
@@ -70,6 +90,10 @@ ingress and egress interfaces for optimal performance.
 
 This sequential ping approach prevents network overload that can occur
 with bulk ping utilities when probing many hosts simultaneously.
+
+CONFIGURATION:
+  Settings can be configured via UCI: /etc/config/cake-autortt
+  Command line options override UCI configuration.
 EOF
 }
 
@@ -362,6 +386,9 @@ main_loop() {
 
 # Main execution
 parse_args "$@"
+
+# Load configuration from UCI
+load_config
 
 # Check dependencies
 command -v ping >/dev/null 2>&1 || {

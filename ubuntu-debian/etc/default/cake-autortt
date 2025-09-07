@@ -10,7 +10,7 @@ UL_INTERFACE="auto"          # Upload interface (e.g., "eth0", "wlan0", "enp3s0"
 # Timing parameters
 RTT_UPDATE_INTERVAL=30       # Seconds between qdisc RTT parameter updates
 MIN_HOSTS=3                  # Minimum number of hosts required for RTT calculation
-MAX_HOSTS=20                 # Maximum number of hosts to probe simultaneously
+MAX_HOSTS=100                # Maximum number of hosts to probe simultaneously
 RTT_MARGIN_PERCENT=10        # Safety margin added to measured RTT (percentage)
 DEFAULT_RTT_MS=100           # Default RTT when insufficient hosts available
 
@@ -33,4 +33,4 @@ DEBUG=0                      # Enable debug logging (0=disabled, 1=enabled)
 #
 # WiFi interface:
 # DL_INTERFACE="wlan0"
-# UL_INTERFACE="wlan0" 
+# UL_INTERFACE="wlan0"
