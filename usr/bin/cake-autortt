@@ -7,7 +7,7 @@
 # probes non-LAN hosts using ping (3 pings per host sequentially), and adjusts
 # the RTT parameter of CAKE qdisc on both ingress and egress interfaces.
 
-VERSION="1.2.0"
+VERSION="1.2.1"
 
 # Default configuration
 RTT_UPDATE_INTERVAL=5
@@ -222,6 +222,7 @@ measure_rtt_ping() {
 	local alive_count=0
 	local total_rtt=0
 	local worst_rtt=0
+	local worst_rtt_set=0
 	local host_rtt_sum
 	local host_rtt_count
 	local host_avg_rtt
@@ -262,9 +263,10 @@ measure_rtt_ping() {
 			host_avg_rtt=$(echo "$host_rtt_sum $host_rtt_count" | awk '{printf "%.3f", $1 / $2}')
 			total_rtt=$(echo "$total_rtt $host_avg_rtt" | awk '{print $1 + $2}')
 			
-			# Track worst (highest) RTT
-			if [ "$(echo "$host_avg_rtt > $worst_rtt" | awk '{print ($1 > $2)}')" = "1" ]; then
+			# Track worst (highest) RTT - handle first host properly
+			if [ "$worst_rtt_set" = "0" ] || [ "$(echo "$host_avg_rtt > $worst_rtt" | awk '{print ($1 > $2)}')" = "1" ]; then
 				worst_rtt="$host_avg_rtt"
+				worst_rtt_set=1
 			fi
 			
 			alive_count=$((alive_count + 1))
