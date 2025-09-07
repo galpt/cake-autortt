@@ -297,12 +297,9 @@ measure_rtt_ping() {
 			host_avg_rtt=$(echo "$host_rtt_sum $host_rtt_count" | awk '{printf "%.3f", $1 / $2}')
 			total_rtt=$(echo "$total_rtt $host_avg_rtt" | awk '{print $1 + $2}')
 			alive_count=$((alive_count + 1))
-			# Only log individual host RTT in very verbose debug mode
 			# log_msg "DEBUG" "Host $host: avg RTT ${host_avg_rtt}ms from $host_rtt_count pings"
-		else
-			# Only log non-responsive hosts in very verbose debug mode
-			# log_msg "DEBUG" "Host $host: no response"
 		fi
+		# log_msg "DEBUG" "Host $host: no response"
 	done < "$hosts_file"
 	
 	log_msg "DEBUG" "ping summary: $alive_count/$host_count hosts alive"
