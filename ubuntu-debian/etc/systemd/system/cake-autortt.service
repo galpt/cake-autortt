@@ -30,7 +30,7 @@ RestrictNamespaces=yes
 RestrictRealtime=yes
 RemoveIPC=yes
 
-# Network capabilities (needed for tc and fping)
+# Network capabilities (needed for tc and ping)
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_ADMIN
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_ADMIN
 
@@ -39,4 +39,4 @@ Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 EnvironmentFile=-/etc/default/cake-autortt
 
 [Install]
-WantedBy=multi-user.target 
+WantedBy=multi-user.target

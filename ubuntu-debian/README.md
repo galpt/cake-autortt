@@ -35,12 +35,12 @@ This is particularly valuable for users who regularly access diverse content sou
 
 - **Automatic RTT Detection**: Monitors active connections via `/proc/net/nf_conntrack` and measures RTT to external hosts
 - **Smart Host Filtering**: Automatically filters out LAN addresses and focuses on external hosts  
-- **Efficient fping Integration**: Leverages fping's built-in averaging across multiple hosts for reliable RTT measurements
+- **Sequential Ping Measurement**: Uses built-in ping command to measure RTT to each host individually (3 pings per host) for reliable measurements
 - **Interface Auto-Detection**: Automatically detects CAKE-enabled interfaces
 - **systemd Integration**: Runs as a proper systemd service with automatic startup and process management
 - **Configurable Parameters**: All timing and behavior parameters can be customized via configuration file
 - **Robust Error Handling**: Gracefully handles missing dependencies, network issues, and interface changes
-- **Simplified Dependencies**: Only requires fping and tc - no complex calculations or additional utilities needed
+- **Minimal Dependencies**: Only requires ping and tc - no additional packages needed, uses built-in utilities available on all systems
 - **High Precision RTT**: Supports fractional RTT values (e.g., 100.23ms) for precise network timing adjustments
 
 ## 🔧 Compatibility
@@ -55,7 +55,7 @@ This is particularly valuable for users who regularly access diverse content sou
 
 **Requirements for Compatibility:**
 - CAKE qdisc kernel module (available in Linux 4.19+)
-- fping package availability
+- ping utility (included in all standard Linux distributions)
 - systemd service management
 - iproute2 with tc (traffic control) utilities
 - /proc/net/nf_conntrack support (netfilter conntrack)
@@ -63,7 +63,7 @@ This is particularly valuable for users who regularly access diverse content sou
 ## 📋 Requirements
 
 ### Dependencies
-- **fping**: Fast ping utility for measuring RTT to multiple hosts (provides built-in averaging)
+- **ping**: Standard ping utility for measuring RTT (included in all Linux distributions)
 - **tc**: Traffic control utility (part of iproute2)
 - **CAKE qdisc**: Must be configured on target interfaces
 - **systemd**: Service management
@@ -74,7 +74,7 @@ This is particularly valuable for users who regularly access diverse content sou
 ```bash
 # Install required packages
 sudo apt update
-sudo apt install fping iproute2
+sudo apt install iputils-ping iproute2
 
 # Check if tc supports CAKE:
 tc qdisc help | grep cake
@@ -277,8 +277,8 @@ DEBUG=0                  # Set to 1 for verbose logging
 
 1. **Connection Monitoring**: Periodically parses `/proc/net/nf_conntrack` to identify active network connections
 2. **Host Filtering**: Extracts destination IP addresses and filters out private/LAN addresses
-3. **RTT Measurement**: Uses `fping -s` to measure RTT to a representative sample of external hosts
-4. **Automatic Averaging**: fping automatically calculates average RTT across all responsive hosts
+3. **RTT Measurement**: Uses `ping` to measure RTT to each external host individually (3 pings per host)
+4. **Sequential Processing**: Pings hosts one by one to prevent network overload, then calculates average RTT across all responsive hosts
 5. **Safety Margin**: Adds a configurable margin to the measured RTT to ensure adequate buffering
 6. **qdisc Update**: Updates the CAKE qdisc RTT parameter on both download and upload interfaces
 
@@ -333,7 +333,7 @@ sudo systemctl restart cake-autortt
 1. **Service won't start**
    ```bash
    # Check dependencies
-   which fping tc
+   which ping tc
    
    # Check for CAKE interfaces
    tc qdisc show | grep cake
@@ -382,8 +382,8 @@ With debug enabled (`DEBUG=1` in `/etc/default/cake-autortt`), the service provi
 ```bash
 Jan 09 18:34:22 hostname cake-autortt[1234]: DEBUG: Extracting hosts from conntrack
 Jan 09 18:34:22 hostname cake-autortt[1234]: DEBUG: Found 35 non-LAN hosts
-Jan 09 18:34:22 hostname cake-autortt[1234]: DEBUG: Measuring RTT using fping for 35 hosts
-Jan 09 18:34:25 hostname cake-autortt[1234]: DEBUG: fping summary: 28/35 hosts alive, avg RTT: 45.2ms
+Jan 09 18:34:22 hostname cake-autortt[1234]: DEBUG: Measuring RTT using ping for 35 hosts (3 pings each)
+Jan 09 18:34:25 hostname cake-autortt[1234]: DEBUG: ping summary: 28/35 hosts alive
 Jan 09 18:34:25 hostname cake-autortt[1234]: DEBUG: Average RTT from 28 hosts: 45.2ms
 Jan 09 18:34:25 hostname cake-autortt[1234]: DEBUG: Using measured RTT: 45.2ms
 Jan 09 18:34:35 hostname cake-autortt[1234]: INFO: Adjusting CAKE RTT to 49.72ms (49720us)
@@ -421,4 +421,4 @@ This project is licensed under the GNU General Public License v2.0 - see the [LI
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. When contributing to the Ubuntu/Debian port, please ensure compatibility with both Ubuntu LTS versions and current Debian stable. 
+Contributions are welcome! Please feel free to submit a Pull Request. When contributing to the Ubuntu/Debian port, please ensure compatibility with both Ubuntu LTS versions and current Debian stable.

@@ -6,7 +6,7 @@
 # Ubuntu/Debian version - adapted for systemd and standard Linux distributions
 #
 # This script monitors active connections using /proc/net/nf_conntrack,
-# probes non-LAN hosts using fping, and adjusts the RTT parameter
+# probes non-LAN hosts using ping (3 pings per host sequentially), and adjusts
 # of CAKE qdisc on both ingress and egress interfaces.
 
 VERSION="1.0.9-ubuntu"
@@ -118,12 +118,14 @@ CONFIGURATION:
   Command line options override configuration file settings.
 
 The script automatically detects active network connections from /proc/net/nf_conntrack,
-filters out LAN addresses, and uses fping to measure RTT to external hosts.
+filters out LAN addresses, and uses ping to measure RTT to external hosts.
+Each host is pinged 3 times sequentially to calculate individual averages,
+then a final average RTT is calculated across all responsive hosts.
 The measured RTT is then used to adjust the CAKE qdisc RTT parameter on both
 ingress and egress interfaces for optimal performance.
 
-fping automatically calculates average RTT across all responsive hosts,
-eliminating the need for manual EWMA smoothing or bc calculations.
+This sequential ping approach prevents network overload that can occur
+with bulk ping utilities when probing many hosts simultaneously.
 EOF
 }
 
@@ -244,11 +246,16 @@ extract_hosts_from_conntrack() {
 	fi
 }
 
-measure_rtt_fping() {
+measure_rtt_ping() {
 	local hosts_file="$1"
 	local host_count
-	local alive_count
-	local avg_rtt
+	local alive_count=0
+	local total_rtt=0
+	local host_rtt_sum
+	local host_rtt_count
+	local host_avg_rtt
+	local ping_output
+	local rtt_value
 	
 	if [ ! -s "$hosts_file" ]; then
 		log_msg "DEBUG" "No hosts to probe"
@@ -256,45 +263,68 @@ measure_rtt_fping() {
 	fi
 	
 	host_count=$(wc -l < "$hosts_file")
-	log_msg "DEBUG" "Measuring RTT using fping for $host_count hosts"
+	log_msg "DEBUG" "Measuring RTT using ping for $host_count hosts (3 pings each)"
 	
-	# Use fping -s for summary statistics
-	# Example output: "5 targets, 5 alive, 0 unreachable, 0 unknown addresses"
-	#                 "ICMP Echo Reply ... min/avg/max = 12.3/45.6/78.9"
-	local fping_output
-	fping_output=$(fping -s -q -c 1 -t 2000 < "$hosts_file" 2>&1)
-	
-	# Extract alive count and average RTT from fping summary
-	alive_count=$(echo "$fping_output" | awk '/alive/ {print $3}')
-	avg_rtt=$(echo "$fping_output" | awk -F'= ' '/min\/avg\/max/ {print $2}' | cut -d'/' -f2)
-	
-	log_msg "DEBUG" "fping summary: $alive_count/$host_count hosts alive, avg RTT: ${avg_rtt}ms"
-	
-	if [ -n "$alive_count" ] && [ "$alive_count" -ge "$MIN_HOSTS" ] && [ -n "$avg_rtt" ]; then
-		# Convert to integer for calculations (remove decimal part)
-		local rtt_int=${avg_rtt%.*}
+	# Ping each host individually
+	while read -r host; do
+		[ -z "$host" ] && continue
 		
-		# Apply margin
-		local margin=$((rtt_int * RTT_MARGIN_PERCENT / 100))
-		local final_rtt=$((rtt_int + margin))
+		host_rtt_sum=0
+		host_rtt_count=0
 		
-		log_msg "DEBUG" "Average RTT from $alive_count hosts: ${avg_rtt}ms"
-		log_msg "DEBUG" "Using measured RTT: ${avg_rtt}ms"
+		# Ping the host 3 times
+		for i in 1 2 3; do
+			ping_output=$(ping -c 1 -W 3 "$host" 2>/dev/null)
+			
+			# Extract RTT from ping output (time=XX.XXX ms)
+			rtt_value=$(echo "$ping_output" | grep "time=" | sed 's/.*time=\([0-9]*\.[0-9]*\).*/\1/')
+			
+			if [ -n "$rtt_value" ] && [ "$(echo "$rtt_value" | grep -E '^[0-9]+(\.[0-9]+)?$')" ]; then
+				# Add to host sum (using awk for floating point arithmetic)
+				host_rtt_sum=$(echo "$host_rtt_sum $rtt_value" | awk '{print $1 + $2}')
+				host_rtt_count=$((host_rtt_count + 1))
+			fi
+		done
 		
-		CURRENT_RTT_MS=$final_rtt
+		# Calculate average RTT for this host if we got any responses
+		if [ "$host_rtt_count" -gt 0 ]; then
+			host_avg_rtt=$(echo "$host_rtt_sum $host_rtt_count" | awk '{printf "%.3f", $1 / $2}')
+			total_rtt=$(echo "$total_rtt $host_avg_rtt" | awk '{print $1 + $2}')
+			alive_count=$((alive_count + 1))
+			log_msg "DEBUG" "Host $host: avg RTT ${host_avg_rtt}ms from $host_rtt_count pings"
+		else
+			log_msg "DEBUG" "Host $host: no response"
+		fi
+	done < "$hosts_file"
+	
+	log_msg "DEBUG" "ping summary: $alive_count/$host_count hosts alive"
+	
+	# Check if we have enough responding hosts
+	if [ "$alive_count" -ge "$MIN_HOSTS" ] && [ "$(echo "$total_rtt > 0" | awk '{print ($1 > 0)}')" = "1" ]; then
+		# Calculate final average RTT across all hosts
+		CURRENT_RTT_MS=$(echo "$total_rtt $alive_count" | awk '{printf "%.3f", $1 / $2}')
+		log_msg "DEBUG" "Average RTT from $alive_count hosts: ${CURRENT_RTT_MS}ms"
 		return 0
-	else
-		log_msg "DEBUG" "Insufficient responsive hosts ($alive_count < $MIN_HOSTS) or no RTT data"
-		return 1
 	fi
+	
+	log_msg "DEBUG" "Not enough responding hosts ($alive_count < $MIN_HOSTS)"
+	return 1
 }
 
 update_cake_rtt() {
-	local rtt_ms="$1"
-	local rtt_us=$((rtt_ms * 1000))
+	local target_rtt_ms="$1"
+	
+	# Add margin to measured RTT using awk for arithmetic with 2 decimal precision
+	local adjusted_rtt
+	adjusted_rtt=$(echo "$target_rtt_ms $RTT_MARGIN_PERCENT" | awk '{printf "%.2f", $1 * (1 + $2 / 100)}')
+	
+	# Convert to microseconds for tc command with proper precision
+	local rtt_us
+	rtt_us=$(echo "$adjusted_rtt" | awk '{printf "%.0f", $1 * 1000}')
+	
 	local updated_count=0
 	
-	log_msg "INFO" "Adjusting CAKE RTT to ${rtt_ms}ms (${rtt_us}us)"
+	log_msg "INFO" "Adjusting CAKE RTT to ${adjusted_rtt}ms (${rtt_us}us)"
 	
 	# Update download interface
 	if [ -n "$DL_INTERFACE" ]; then
@@ -344,8 +374,8 @@ cleanup() {
 check_dependencies() {
 	local missing_deps=""
 	
-	if ! command -v fping >/dev/null 2>&1; then
-		missing_deps="$missing_deps fping"
+	if ! command -v ping >/dev/null 2>&1; then
+		missing_deps="$missing_deps ping"
 	fi
 	
 	if ! command -v tc >/dev/null 2>&1; then
@@ -400,8 +430,8 @@ main() {
 		extract_hosts_from_conntrack "$TEMP_HOSTS"
 		
 		if [ "$HOSTS_COUNT" -ge "$MIN_HOSTS" ]; then
-			# Measure RTT using fping
-			if measure_rtt_fping "$TEMP_HOSTS"; then
+			# Measure RTT using ping
+			if measure_rtt_ping "$TEMP_HOSTS"; then
 				# Update CAKE RTT parameter
 				update_cake_rtt "$CURRENT_RTT_MS"
 			else
@@ -421,4 +451,4 @@ main() {
 # Run main function if script is executed directly
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
 	main "$@"
-fi 
+fi

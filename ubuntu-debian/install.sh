@@ -78,9 +78,9 @@ check_dependencies() {
     local missing_deps=""
     local missing_packages=""
     
-    if ! command -v fping >/dev/null 2>&1; then
-        missing_deps="$missing_deps fping"
-        missing_packages="$missing_packages fping"
+    if ! command -v ping >/dev/null 2>&1; then
+	missing_deps="$missing_deps ping"
+	missing_packages="$missing_packages iputils-ping"
     fi
     
     if ! command -v tc >/dev/null 2>&1; then
@@ -358,7 +358,7 @@ REQUIREMENTS:
 
 BEFORE INSTALLATION:
   1. Ensure CAKE qdisc is configured on your interfaces
-  2. Install required packages: sudo apt install fping iproute2
+  2. Install required packages: sudo apt install iputils-ping iproute2
 
 For more information, see README.md
 EOF
@@ -424,4 +424,4 @@ main() {
 }
 
 # Run main function
-main 
+main

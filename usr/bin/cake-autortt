@@ -4,15 +4,15 @@
 # based on measured RTT to active network connections
 #
 # This script monitors active connections using /proc/net/nf_conntrack,
-# probes non-LAN hosts using fping, and adjusts the RTT parameter
-# of CAKE qdisc on both ingress and egress interfaces.
+# probes non-LAN hosts using ping (3 pings per host sequentially), and adjusts
+# the RTT parameter of CAKE qdisc on both ingress and egress interfaces.
 
 VERSION="1.0.9"
 
 # Default configuration
 RTT_UPDATE_INTERVAL=5
 MIN_HOSTS=3
-MAX_HOSTS=100
+MAX_HOSTS=20
 RTT_MARGIN_PERCENT=10
 DEFAULT_RTT_MS=100
 DL_INTERFACE=""
@@ -62,12 +62,14 @@ EXAMPLES:
   cake-autortt --rtt-update-interval 15 --dl-interface ifb-wan --ul-interface wan
 
 The script automatically detects active network connections from /proc/net/nf_conntrack,
-filters out LAN addresses, and uses fping to measure RTT to external hosts.
+filters out LAN addresses, and uses ping to measure RTT to external hosts.
+Each host is pinged 3 times sequentially to calculate individual averages,
+then a final average RTT is calculated across all responsive hosts.
 The measured RTT is then used to adjust the CAKE qdisc RTT parameter on both
 ingress and egress interfaces for optimal performance.
 
-fping automatically calculates average RTT across all responsive hosts,
-eliminating the need for manual EWMA smoothing or bc calculations.
+This sequential ping approach prevents network overload that can occur
+with bulk ping utilities when probing many hosts simultaneously.
 EOF
 }
 
@@ -184,11 +186,16 @@ extract_hosts_from_conntrack() {
 	fi
 }
 
-measure_rtt_fping() {
+measure_rtt_ping() {
 	local hosts_file="$1"
 	local host_count
-	local alive_count
-	local avg_rtt
+	local alive_count=0
+	local total_rtt=0
+	local host_rtt_sum
+	local host_rtt_count
+	local host_avg_rtt
+	local ping_output
+	local rtt_value
 	
 	if [ ! -s "$hosts_file" ]; then
 		log_msg "DEBUG" "No hosts to probe"
@@ -196,38 +203,51 @@ measure_rtt_fping() {
 	fi
 	
 	host_count=$(wc -l < "$hosts_file")
-	log_msg "DEBUG" "Measuring RTT using fping for $host_count hosts"
+	log_msg "DEBUG" "Measuring RTT using ping for $host_count hosts (3 pings each)"
 	
-	# Use fping with summary statistics
-	# -s: print summary statistics, -t 3000: 3 second timeout per host
-	local fping_output
-	fping_output=$(fping -s -t 3000 $(tr '\n' ' ' < "$hosts_file") 2>&1)
-	
-	# Extract alive count from summary statistics (look for lines with leading spaces and "alive")
-	alive_count=$(echo "$fping_output" | grep "^[[:space:]]*[0-9][0-9]*[[:space:]]*alive" | awk '{print $1}')
-	
-	# Extract average RTT from summary statistics  
-	avg_rtt=$(echo "$fping_output" | grep "avg round trip time" | sed 's/.*[[:space:]]\([0-9][0-9]*\.[0-9]*\)[[:space:]]*ms.*/\1/')
-	
-	log_msg "DEBUG" "fping summary: $alive_count/$host_count hosts alive, avg RTT: ${avg_rtt}ms"
-	
-	# Check if we have enough responding hosts and valid RTT measurement
-	if [ -n "$alive_count" ] && [ -n "$avg_rtt" ] && \
-	   [ "$alive_count" -ge "$MIN_HOSTS" ] && \
-	   [ "$(echo "$avg_rtt" | grep -E '^[0-9]+(\.[0-9]+)?$')" ]; then
-		# Simple validation that avg_rtt is a positive number
-		if [ "$(echo "$avg_rtt > 0" | awk '{print ($1 > 0)}')" = "1" ]; then
-			CURRENT_RTT_MS="$avg_rtt"
-			log_msg "DEBUG" "Average RTT from $alive_count hosts: ${avg_rtt}ms"
-			return 0
+	# Ping each host individually
+	while read -r host; do
+		[ -z "$host" ] && continue
+		
+		host_rtt_sum=0
+		host_rtt_count=0
+		
+		# Ping the host 3 times
+		for i in 1 2 3; do
+			ping_output=$(ping -c 1 -W 3 "$host" 2>/dev/null)
+			
+			# Extract RTT from ping output (time=XX.XXX ms)
+			rtt_value=$(echo "$ping_output" | grep "time=" | sed 's/.*time=\([0-9]*\.[0-9]*\).*/\1/')
+			
+			if [ -n "$rtt_value" ] && [ "$(echo "$rtt_value" | grep -E '^[0-9]+(\.[0-9]+)?$')" ]; then
+				# Add to host sum (using awk for floating point arithmetic)
+				host_rtt_sum=$(echo "$host_rtt_sum $rtt_value" | awk '{print $1 + $2}')
+				host_rtt_count=$((host_rtt_count + 1))
+			fi
+		done
+		
+		# Calculate average RTT for this host if we got any responses
+		if [ "$host_rtt_count" -gt 0 ]; then
+			host_avg_rtt=$(echo "$host_rtt_sum $host_rtt_count" | awk '{printf "%.3f", $1 / $2}')
+			total_rtt=$(echo "$total_rtt $host_avg_rtt" | awk '{print $1 + $2}')
+			alive_count=$((alive_count + 1))
+			log_msg "DEBUG" "Host $host: avg RTT ${host_avg_rtt}ms from $host_rtt_count pings"
+		else
+			log_msg "DEBUG" "Host $host: no response"
 		fi
+	done < "$hosts_file"
+	
+	log_msg "DEBUG" "ping summary: $alive_count/$host_count hosts alive"
+	
+	# Check if we have enough responding hosts
+	if [ "$alive_count" -ge "$MIN_HOSTS" ] && [ "$(echo "$total_rtt > 0" | awk '{print ($1 > 0)}')" = "1" ]; then
+		# Calculate final average RTT across all hosts
+		CURRENT_RTT_MS=$(echo "$total_rtt $alive_count" | awk '{printf "%.3f", $1 / $2}')
+		log_msg "DEBUG" "Average RTT from $alive_count hosts: ${CURRENT_RTT_MS}ms"
+		return 0
 	fi
 	
-	if [ -z "$alive_count" ] || [ "$alive_count" -lt "$MIN_HOSTS" ]; then
-		log_msg "DEBUG" "Not enough responding hosts ($alive_count < $MIN_HOSTS)"
-	else
-		log_msg "DEBUG" "Invalid or missing RTT measurement: '$avg_rtt'"
-	fi
+	log_msg "DEBUG" "Not enough responding hosts ($alive_count < $MIN_HOSTS)"
 	return 1
 }
 
@@ -317,7 +337,7 @@ main_loop() {
 		
 		# Measure RTT if we have enough hosts
 		if [ "$HOSTS_COUNT" -ge "$MIN_HOSTS" ]; then
-			if measure_rtt_fping "$TEMP_HOSTS"; then
+			if measure_rtt_ping "$TEMP_HOSTS"; then
 				rtt_to_use="$CURRENT_RTT_MS"
 				should_update_rtt=1
 				log_msg "DEBUG" "Using measured RTT: ${rtt_to_use}ms"
@@ -344,8 +364,8 @@ main_loop() {
 parse_args "$@"
 
 # Check dependencies
-command -v fping >/dev/null 2>&1 || {
-	log_msg "ERROR" "fping is required but not installed"
+command -v ping >/dev/null 2>&1 || {
+	log_msg "ERROR" "ping is required but not installed"
 	exit 1
 }
 
@@ -369,4 +389,4 @@ trap cleanup_and_exit INT TERM
 echo $$ > "$PIDFILE"
 
 # Start main loop
-main_loop 
+main_loop
