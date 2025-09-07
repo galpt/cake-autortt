@@ -9,7 +9,7 @@
 # probes non-LAN hosts using ping (3 pings per host sequentially), and adjusts
 # of CAKE qdisc on both ingress and egress interfaces.
 
-VERSION="1.1.1-ubuntu"
+VERSION="1.2.0-ubuntu"
 
 # Configuration file
 CONFIG_FILE="/etc/default/cake-autortt"
@@ -257,6 +257,7 @@ measure_rtt_ping() {
 	local host_count
 	local alive_count=0
 	local total_rtt=0
+	local worst_rtt=0
 	local host_rtt_sum
 	local host_rtt_count
 	local host_avg_rtt
@@ -296,8 +297,14 @@ measure_rtt_ping() {
 		if [ "$host_rtt_count" -gt 0 ]; then
 			host_avg_rtt=$(echo "$host_rtt_sum $host_rtt_count" | awk '{printf "%.3f", $1 / $2}')
 			total_rtt=$(echo "$total_rtt $host_avg_rtt" | awk '{print $1 + $2}')
+			
+			# Track worst (highest) RTT
+			if [ "$(echo "$host_avg_rtt > $worst_rtt" | awk '{print ($1 > $2)}')" = "1" ]; then
+				worst_rtt="$host_avg_rtt"
+			fi
+			
 			alive_count=$((alive_count + 1))
-			# log_msg "DEBUG" "Host $host: avg RTT ${host_avg_rtt}ms from $host_rtt_count pings"
+			log_msg "DEBUG" "Host $host: avg RTT ${host_avg_rtt}ms from $host_rtt_count pings"
 		fi
 		# log_msg "DEBUG" "Host $host: no response"
 	done < "$hosts_file"
@@ -307,8 +314,18 @@ measure_rtt_ping() {
 	# Check if we have enough responding hosts
 	if [ "$alive_count" -ge "$MIN_HOSTS" ] && [ "$(echo "$total_rtt > 0" | awk '{print ($1 > 0)}')" = "1" ]; then
 		# Calculate final average RTT across all hosts
-		CURRENT_RTT_MS=$(echo "$total_rtt $alive_count" | awk '{printf "%.3f", $1 / $2}')
-		log_msg "DEBUG" "Average RTT from $alive_count hosts: ${CURRENT_RTT_MS}ms"
+		local avg_rtt
+		avg_rtt=$(echo "$total_rtt $alive_count" | awk '{printf "%.3f", $1 / $2}')
+		
+		# Use worst RTT if it's higher than average, otherwise use average
+		if [ "$(echo "$worst_rtt > $avg_rtt" | awk '{print ($1 > $2)}')" = "1" ]; then
+			CURRENT_RTT_MS="$worst_rtt"
+			log_msg "DEBUG" "Using worst RTT: ${CURRENT_RTT_MS}ms (avg: ${avg_rtt}ms, worst: ${worst_rtt}ms)"
+		else
+			CURRENT_RTT_MS="$avg_rtt"
+			log_msg "DEBUG" "Using average RTT: ${CURRENT_RTT_MS}ms (avg: ${avg_rtt}ms, worst: ${worst_rtt}ms)"
+		fi
+		
 		return 0
 	fi
 	

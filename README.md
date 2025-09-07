@@ -1,5 +1,11 @@
 # cake-autortt
 
+## 🌐 Language / 语言 / Bahasa / Язык / 言語 / Ngôn ngữ / Dil / اللغة
+
+**English** | [中文](README_zh.md) | [Bahasa Indonesia](README_id.md) | [Русский](README_ru.md) | [日本語](README_ja.md) | [Tiếng Việt](README_vi.md) | [Türkçe](README_tr.md) | [العربية](README_ar.md)
+
+---
+
 > [!NOTE]  
 > If you're looking for the **Ubuntu/Debian version**, check the `ubuntu-debian/` folder. However, please note that only the OpenWrt version is personally tested daily - the Ubuntu/Debian port is provided as-is for the community.
 
@@ -38,7 +44,7 @@ This is particularly valuable for users who regularly access diverse content sou
 
 - **Automatic RTT Detection**: Monitors active connections via `/proc/net/nf_conntrack` and measures RTT to external hosts
 - **Smart Host Filtering**: Automatically filters out LAN addresses and focuses on external hosts  
-- **Sequential Ping Measurement**: Uses built-in ping command to measure RTT to each host individually (3 pings per host) for reliable measurements
+- **Smart RTT Algorithm**: Uses built-in ping command to measure RTT to each host individually (3 pings per host), then intelligently selects between average and worst-case RTT for optimal performance
 - **Interface Auto-Detection**: Automatically detects CAKE-enabled interfaces (prefers `ifb-*` for download, physical interfaces for upload)
 - **OpenWrt Service Integration**: Runs as a proper OpenWrt service with automatic startup and process management
 - **Configurable Parameters**: All timing and behavior parameters can be customized via UCI configuration
@@ -235,11 +241,29 @@ The service is configured through UCI. Edit `/etc/config/cake-autortt` or use th
 1. **Connection Monitoring**: Periodically parses `/proc/net/nf_conntrack` to identify active network connections
 2. **Host Filtering**: Extracts destination IP addresses and filters out private/LAN addresses
 3. **RTT Measurement**: Uses `ping` to measure RTT to each external host individually (3 pings per host)
-4. **Sequential Processing**: Pings hosts one by one to prevent network overload, then calculates average RTT across all responsive hosts
+4. **Smart RTT Selection**: Pings hosts one by one to prevent network overload, calculates both average and worst-case RTT, then uses the higher value to ensure optimal performance for all connections
 5. **Safety Margin**: Adds a configurable margin to the measured RTT to ensure adequate buffering
 6. **qdisc Update**: Updates the CAKE qdisc RTT parameter on both download and upload interfaces
 
+### 🧠 Smart RTT Algorithm
 
+Starting with version 1.2.0, cake-autortt implements an intelligent RTT selection algorithm based on recommendations from Dave Täht (co-author of CAKE):
+
+**The Problem**: Using only average RTT can be problematic when some hosts have significantly higher latency than others. For example, if you have 100 hosts with an average RTT of 40ms, but 2 hosts have RTTs of 234ms and 240ms, using the 40ms average could cause performance issues for those high-latency connections.
+
+**The Solution**: The algorithm now:
+1. **Calculates both average and worst-case RTT** from all responsive hosts
+2. **Compares the two values** and intelligently selects the appropriate one
+3. **Uses worst RTT when it's significantly higher** than average to ensure all connections perform well
+4. **Uses average RTT when worst RTT is close** to average to avoid over-conservative settings
+
+**Why This Matters**: According to [Dave Täht](https://forum.mikrotik.com/t/fq-codel-cake-stories/181067/17), "it is better, especially when inbound shaping, to be using your typical RTT as the estimate so as to get control of the queue before it flows into the ISP shaper you are defeating." However, if the actual RTT to any host is longer than the RTT set on CAKE interfaces, performance can suffer significantly.
+
+**Real-World Example**:
+- 98 hosts with RTT 30-50ms (average: 42ms)
+- 2 hosts with RTT 200ms+ (worst: 234ms)
+- **Old algorithm**: Would use 45ms average, causing issues for the 200ms+ hosts
+- **New algorithm**: Uses 234ms worst RTT, ensuring optimal performance for all connections
 
 ### Example Connection Flow
 
@@ -328,7 +352,7 @@ With debug enabled (`uci set cake-autortt.global.debug='1'`), the service provid
 [2025-01-09 18:34:22] cake-autortt DEBUG: Found 35 non-LAN hosts
 [2025-01-09 18:34:22] cake-autortt DEBUG: Measuring RTT using ping for 35 hosts (3 pings each)
 [2025-01-09 18:34:25] cake-autortt DEBUG: ping summary: 28/35 hosts alive
-[2025-01-09 18:34:25] cake-autortt DEBUG: Average RTT from 28 hosts: 45.2ms
+[2025-01-09 18:34:25] cake-autortt DEBUG: Using average RTT: 45.2ms (avg: 45.2ms, worst: 89.1ms)
 [2025-01-09 18:34:25] cake-autortt DEBUG: Using measured RTT: 45.2ms
 [2025-01-09 18:34:35] cake-autortt INFO: Adjusting CAKE RTT to 49.72ms (49720us)
 [2025-01-09 18:34:35] cake-autortt DEBUG: Updated RTT on download interface ifb-wan
